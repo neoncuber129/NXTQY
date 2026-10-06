@@ -1,0 +1,52 @@
+<Window x:Class="Inventory.App.Views.DashboardColumnFilterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Language="vi-VN"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Title="Lọc cột"
+        Height="440"
+        Width="540"
+        MinWidth="460"
+        ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Text="Tìm trong danh sách giá trị:" Margin="0,0,0,4"/>
+        <TextBox Grid.Row="1" x:Name="SearchBox" Margin="0,0,0,8"
+                 TextChanged="SearchBox_OnTextChanged"/>
+        <Border Grid.Row="2" BorderBrush="#CCC" BorderThickness="1" Padding="4">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="ValuesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Margin="0,2"
+                                      Content="{Binding Display}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+        <DockPanel Grid.Row="3" Margin="0,12,0,0" LastChildFill="False">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <Button Content="Chọn tất cả" Margin="0,0,8,0" Click="SelectAll_OnClick"
+                        Style="{StaticResource PrimaryButtonStyle}"/>
+                <Button Content="Bỏ chọn tất cả" Click="UnselectAll_OnClick"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Bỏ lọc" Margin="0,0,8,0" Click="ClearFilter_OnClick"
+                        Style="{StaticResource WarningButtonStyle}"/>
+                <Button Content="Áp dụng" IsDefault="True" Margin="0,0,8,0" Click="Apply_OnClick"
+                        Style="{StaticResource PrimaryButtonStyle}"/>
+                <Button Content="Đóng" IsCancel="True" Click="Close_OnClick"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,172 @@
+<Window x:Class="Inventory.App.Views.ItemPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Language="vi-VN"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Title="Chọn mặt hàng"
+        Height="620"
+        Width="980">
+    <Window.Resources>
+        <Style x:Key="WrappedCell" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="CenterAlignedCell" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="CenterWrappedCell" TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Left"
+                       Text="Tìm mặt hàng:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Height="28"
+                     VerticalContentAlignment="Center"
+                     ToolTip="Tìm theo mã, tên mặt hàng, danh mục, đơn vị hoặc ghi chú"/>
+        </DockPanel>
+
+        <TabControl Grid.Row="1">
+            <TabItem Header="Danh sách đầy đủ">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Chọn tất cả" Click="SelectAllFull_Click" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                        <Button Content="Bỏ chọn tất cả" Click="ClearAllFull_Click" Style="{StaticResource SecondaryButtonStyle}"/>
+                    </StackPanel>
+                    <DataGrid Grid.Row="1"
+                              x:Name="FullItemsGrid"
+                              ItemsSource="{Binding FullItemsView}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              LoadingRow="DataGrid_OnLoadingRow">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Chọn" Width="55">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="140" MinWidth="90"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="160" MinWidth="100"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                            <DataGridTextColumn Header="Loại" Binding="{Binding UsageType, Mode=OneWay}" Width="100" MinWidth="70"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterWrappedCell}"/>
+                            <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}"
+                                                IsReadOnly="True"
+                                                Width="100"/>
+                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="140"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Theo phiếu nhập">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="180"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Chọn tất cả phiếu" Click="SelectAllReceipts_Click" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                        <Button Content="Bỏ chọn phiếu" Click="ClearAllReceipts_Click" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"/>
+                        <Button Content="Tải mặt hàng từ phiếu đã chọn" Click="LoadFromReceipts_Click" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                        <CheckBox Content="Bỏ mặt hàng tồn = 0"
+                                  IsChecked="{Binding FilterOutZeroStock, Mode=TwoWay}"
+                                  VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Receipts}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              LoadingRow="DataGrid_OnLoadingRow">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Chọn" Width="55">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Số phiếu" Binding="{Binding ReceiptNumber, Mode=OneWay}" Width="140" MinWidth="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Ngày" Binding="{Binding ReceiptDate, Mode=OneWay, StringFormat=dd/MM/yyyy}" Width="110" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Theo Kế hoạch" Binding="{Binding DeliveredBy, Mode=OneWay}" Width="160" MinWidth="100" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Grid.Row="2" Text="Mặt hàng theo phiếu đã chọn" FontWeight="SemiBold" Margin="0,10,0,6"/>
+                    <DataGrid Grid.Row="3"
+                              ItemsSource="{Binding ReceiptItemsView}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              LoadingRow="DataGrid_OnLoadingRow">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Chọn" Width="55">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="160" MinWidth="100"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="160" MinWidth="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Từ phiếu" Binding="{Binding SourceReceiptNumber, Mode=OneWay}" Width="120" IsReadOnly="True"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Thêm mặt hàng đã chọn" Width="170" Margin="0,0,8,0" Click="AddSelected_Click" Style="{StaticResource SuccessButtonStyle}"/>
+            <Button Content="Đóng" Width="90" IsCancel="True" Click="Close_Click" Style="{StaticResource SecondaryButtonStyle}"/>
+        </StackPanel>
+    </Grid>
+</Window>

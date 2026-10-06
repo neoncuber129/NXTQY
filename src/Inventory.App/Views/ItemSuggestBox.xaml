@@ -1,0 +1,148 @@
+<UserControl x:Class="Inventory.App.Views.ItemSuggestBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Inventory.App.Converters"
+             Loaded="UserControl_OnLoaded"
+             Focusable="False"
+             VerticalAlignment="Stretch"
+             HorizontalAlignment="Stretch">
+    <UserControl.Resources>
+        <conv:BlankFallbackConverter x:Key="BlankFallbackConverter"/>
+    </UserControl.Resources>
+    <Grid>
+        <TextBox x:Name="QueryBox"
+                 VerticalAlignment="Stretch"
+                 HorizontalAlignment="Stretch"
+                 VerticalContentAlignment="Center"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 Padding="4,0"
+                 TextChanged="QueryBox_OnTextChanged"
+                 PreviewKeyDown="QueryBox_OnPreviewKeyDown"
+                 LostKeyboardFocus="QueryBox_OnLostKeyboardFocus"/>
+        <Popup x:Name="SuggestPopup"
+               PlacementTarget="{Binding ElementName=QueryBox}"
+               Placement="Bottom"
+               StaysOpen="True"
+               AllowsTransparency="True"
+               Focusable="False"
+               PopupAnimation="Fade">
+            <Border Background="White"
+                    BorderBrush="#FF2563EB"
+                    BorderThickness="1"
+                    CornerRadius="2"
+                    MinWidth="{Binding ActualWidth, ElementName=QueryBox}"
+                    MaxHeight="300"
+                    SnapsToDevicePixels="True"
+                    PreviewMouseLeftButtonDown="SuggestPopup_OnPreviewMouseLeftButtonDown">
+                <ListBox x:Name="SuggestList"
+                         BorderThickness="0"
+                         Focusable="False"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="Padding" Value="8,6"/>
+                            <Setter Property="Margin" Value="1"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="3"
+                                                Padding="{TemplateBinding Padding}"
+                                                SnapsToDevicePixels="True">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#FF1D4ED8"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#FF93C5FD"/>
+                                            </Trigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsSelected" Value="True"/>
+                                                    <Condition Property="IsMouseOver" Value="True"/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="Bd" Property="Background" Value="#FF1E40AF"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
+                                    <Run Text="{Binding ItemCode, Mode=OneWay}"/>
+                                    <Run Text=" — "/>
+                                    <Run Text="{Binding ItemName, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Opacity="0.95">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#FF334155"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFE2E8F0"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Danh mục: "/>
+                                    <Run Text="{Binding Category, Mode=OneWay, Converter={StaticResource BlankFallbackConverter}, ConverterParameter=(không)}"/>
+                                    <Run Text=" · Loại: "/>
+                                    <Run Text="{Binding UsageType, Mode=OneWay, Converter={StaticResource BlankFallbackConverter}, ConverterParameter=(thường)}"/>
+                                    <Run Text=" · "/>
+                                    <Run Text="{Binding UnitPrice, Mode=OneWay, StringFormat={}{0:N0}}"/>
+                                    <Run Text=" đ"/>
+                                </TextBlock>
+                                <TextBlock FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Opacity="0.9"
+                                           Margin="0,2,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#FF475569"/>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Note}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Note}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFCBD5E1"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="Ghi chú: "/>
+                                    <Run Text="{Binding Note, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

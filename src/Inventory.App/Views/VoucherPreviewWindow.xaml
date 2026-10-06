@@ -1,0 +1,146 @@
+<Window x:Class="Inventory.App.Views.VoucherPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:Inventory.App.Views"
+        Language="vi-VN"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Title="Xem trước phiếu"
+        Height="720"
+        Width="1200">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <Style x:Key="CenterAlignedCell" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="RightAlignedCell" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Text="{Binding KindTitle}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+        <StackPanel Grid.Row="1" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                        Visibility="{Binding HasUnitFilter, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="Xem theo đơn vị:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox Width="260"
+                          ItemsSource="{Binding UnitFilterOptions}"
+                          DisplayMemberPath="DisplayName"
+                          SelectedItem="{Binding SelectedUnitFilter, Mode=TwoWay}"
+                          SelectionChanged="UnitFilterCombo_OnSelectionChanged"/>
+            </StackPanel>
+            <UniformGrid Columns="3">
+                <StackPanel Margin="0,0,12,8">
+                    <TextBlock Text="Tên / số phiếu" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding DocumentNumber}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8">
+                    <TextBlock Text="Thời gian" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding DocumentDate, StringFormat=dd/MM/yyyy}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8">
+                    <TextBlock Text="Tổng tiền" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding TotalAmount, StringFormat=N0}"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8"
+                            Visibility="{Binding ShowExtraHeaderInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding PrimaryPersonLabel}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding PrimaryPerson}" TextWrapping="Wrap"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8"
+                            Visibility="{Binding ShowExtraHeaderInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding PrimaryUnitLabel}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding PrimaryUnit}" TextWrapping="Wrap"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8"
+                            Visibility="{Binding ShowExtraHeaderInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding SecondaryPersonLabel}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding SecondaryPerson}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </UniformGrid>
+            <StackPanel Margin="0,4,0,0"
+                        Visibility="{Binding ShowExtraHeaderInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="{Binding ReasonLabel}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Reason}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </StackPanel>
+        <Grid Grid.Row="2" x:Name="LinesSplitHost">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" MinWidth="260"/>
+                <ColumnDefinition Width="6"/>
+                <ColumnDefinition Width="1.1*" MinWidth="260"/>
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0">
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SplitPaneCaption}" Text="Thông tin chính"/>
+                <DataGrid x:Name="LinesGrid"
+                          Style="{StaticResource AlignedSplitDataGrid}"
+                          VerticalScrollBarVisibility="Hidden"
+                          ItemsSource="{Binding LineRows}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          SelectionChanged="LinesGrid_OnSelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="STT"
+                                            Binding="{Binding RowNumber, Mode=OneWay}"
+                                            Width="50"
+                                            ElementStyle="{StaticResource CenterAlignedCell}"/>
+                        <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="140" MinWidth="100"/>
+                        <DataGridTextColumn Header="Tên mặt hàng" Binding="{Binding ItemName, Mode=OneWay}" Width="220" MinWidth="140"/>
+                        <DataGridTextColumn x:Name="QuantityColumn"
+                                            Header="Số lượng"
+                                            Binding="{Binding Quantity, Mode=OneWay, StringFormat=N0}"
+                                            Width="100"
+                                            ElementStyle="{StaticResource CenterAlignedCell}"/>
+                        <DataGridTextColumn Header="Đơn giá"
+                                            Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}"
+                                            Width="100"
+                                            ElementStyle="{StaticResource RightAlignedCell}"/>
+                        <DataGridTextColumn Header="Thành tiền"
+                                            Binding="{Binding Amount, Mode=OneWay, StringFormat=N0}"
+                                            Width="110"
+                                            ElementStyle="{StaticResource RightAlignedCell}"/>
+                        <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, Mode=OneWay}" Width="140" MinWidth="80"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+
+            <GridSplitter x:Name="LinesSplitter" Grid.Column="1"
+                          Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="#DDDDDD" ResizeBehavior="PreviousAndNext"/>
+
+            <DockPanel Grid.Column="2" x:Name="UnitsPanel">
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SplitPaneCaption}" Text="Đơn vị trực thuộc"/>
+                <DataGrid x:Name="UnitsGrid"
+                          Style="{StaticResource AlignedSplitDataGrid}"
+                          ItemsSource="{Binding LineRows}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          SelectionChanged="UnitsGrid_OnSelectionChanged"/>
+            </DockPanel>
+        </Grid>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="{Binding WordActionButtonText}" Padding="12,6" Margin="0,0,8,0"
+                    Style="{StaticResource ExportButtonStyle}"
+                    Visibility="{Binding ShowWordExportButton, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Click="OpenWord_OnClick"/>
+            <Button Content="Đóng" Padding="12,6" IsCancel="True" Click="Close_OnClick" Style="{StaticResource SecondaryButtonStyle}"/>
+        </StackPanel>
+        <views:BusyOverlay x:Name="BusyOverlay"
+                           Grid.RowSpan="4"
+                           Visibility="Collapsed"/>
+    </Grid>
+</Window>

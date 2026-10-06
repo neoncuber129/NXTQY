@@ -1,0 +1,997 @@
+<Window x:Class="Inventory.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Inventory.App"
+        xmlns:helpers="clr-namespace:Inventory.App.Helpers"
+        xmlns:views="clr-namespace:Inventory.App.Views"
+        Language="vi-VN"
+        mc:Ignorable="d"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded"
+        Title="Quản lý nhập xuất tồn - v1.1" Height="860" Width="1400">
+    <Window.Resources>
+        <Style x:Key="RightAlignedCell" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0,0,8,0"/>
+        </Style>
+        <Style x:Key="CenterAlignedCell" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="CenterAlignedEditCell" TargetType="TextBox">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="2,0"/>
+        </Style>
+        <Style x:Key="WrappedCell" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="CenterWrappedCell" TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+    <DockPanel Margin="12">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+            <Menu DockPanel.Dock="Left" Background="Transparent">
+                <MenuItem Header="Tiện ích">
+                    <MenuItem Header="Xuất template Excel phiếu nhập" Command="{Binding SaveReceiptTemplateCommand}"/>
+                    <MenuItem Header="Xuất template Excel tồn đầu năm" Command="{Binding SaveOpeningTemplateCommand}"/>
+                </MenuItem>
+                <MenuItem Header="Cài đặt">
+                    <MenuItem Header="Cài đặt nhà phát triển">
+                        <MenuItem Header="Mở khóa sửa Dashboard" IsCheckable="True"
+                                  IsChecked="{Binding DashboardEditUnlocked, Mode=TwoWay}"/>
+                        <MenuItem Header="Chế độ Mode B (Nhập Excel cân đối theo mã hàng)" IsCheckable="True"
+                                  IsChecked="{Binding IsModeB, Mode=TwoWay}"
+                                  ToolTip="Bật chế độ cho phép dán trực tiếp mã hàng và số lượng từ Excel vào phiếu cân đối (gộp mã trùng)."/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem x:Name="UiScaleMenu" Header="Tỷ lệ DPI / giao diện">
+                        <MenuItem Header="75%" Tag="0.75" Click="UiScaleMenuItem_OnClick"/>
+                        <MenuItem Header="100% (mặc định)" Tag="1.00" Click="UiScaleMenuItem_OnClick"/>
+                        <MenuItem Header="125%" Tag="1.25" Click="UiScaleMenuItem_OnClick"/>
+                        <MenuItem Header="150%" Tag="1.50" Click="UiScaleMenuItem_OnClick"/>
+                        <MenuItem Header="175%" Tag="1.75" Click="UiScaleMenuItem_OnClick"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Template Word">
+                        <MenuItem Header="Chọn thư mục mặc định lưu template…"
+                                  Command="{Binding ConfigureWordTemplateFolderCommand}"/>
+                        <MenuItem IsHitTestVisible="False"
+                                  Focusable="False"
+                                  StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <TextBlock Text="{Binding WordTemplateFolderDisplay}"
+                                           Foreground="#FF334155"
+                                           FontStyle="Italic"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="420"/>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Xem danh sách placeholder…" Command="{Binding ShowWordPlaceholderHelpCommand}"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Backup dữ liệu (gắn năm làm việc)" Command="{Binding BackupDatabaseCommand}"
+                              ToolTip="Sao lưu toàn bộ DB; tên file mặc định có năm đang chọn (NXT_YYYY_...)."/>
+                    <MenuItem Header="Restore dữ liệu" Command="{Binding RestoreDatabaseCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Xóa toàn bộ dữ liệu" Command="{Binding ClearAllDataCommand}"/>
+                </MenuItem>
+                <MenuItem Header="About" Click="About_OnClick"/>
+            </Menu>
+            <Border DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="0,0,4,0"
+                    ToolTip="Phiên bản phần mềm">
+                <TextBlock Text="v1.1" Foreground="#1E40AF" FontSize="11" FontWeight="Bold"/>
+            </Border>
+        </DockPanel>
+
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Năm làm việc:" VerticalAlignment="Center" Margin="0,0,8,0"
+                       ToolTip="Chuyển kỳ không xóa năm cũ. Bấm nút năm để chọn năm cần xem."/>
+            <Button MinWidth="110" Height="28" Margin="0,0,8,0" Padding="10,0"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding PickWorkingYearCommand}"
+                    ToolTip="Chọn năm làm việc (dashboard, phiếu nhập/xuất, tồn đầu năm).">
+                <TextBlock>
+                    <Run Text="Năm "/>
+                    <Run Text="{Binding SelectedYear, Mode=OneWay}"/>
+                    <Run Text=" ▾"/>
+                </TextBlock>
+            </Button>
+            <Button Content="Tải dashboard" Command="{Binding RefreshDashboardCommand}" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+            <Button Content="Xuất Excel Dashboard" Command="{Binding ExportDashboardExcelCommand}" Margin="0,0,8,0" Style="{StaticResource ExportButtonStyle}"/>
+            <Button Content="Chuyển kỳ từ năm trước" Command="{Binding CarryForwardCommand}" Margin="0,0,8,0"
+                    Style="{StaticResource WarningButtonStyle}"
+                    ToolTip="Mở form chuyển kỳ: hiện rõ năm nguồn/đích, thời điểm, tên thao tác, backup và tóm tắt dữ liệu. Dữ liệu năm nguồn vẫn giữ để xem lại."/>
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="DarkBlue"/>
+        </StackPanel>
+
+        <TabControl SelectedIndex="{Binding SelectedMainTabIndex}">
+            <TabItem Header="Dashboard">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Padding="10,6" Margin="0,0,0,8"
+                            Background="#FFFFF7ED" BorderBrush="#FFF97316" BorderThickness="1" CornerRadius="4"
+                            Visibility="{Binding HasUnsavedDashboardMetadata, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Có thay đổi chưa lưu trên Dashboard — hãy bấm Lưu thay đổi."
+                                   Foreground="#FF9A3412" FontWeight="SemiBold"/>
+                    </Border>
+
+                    <DockPanel Grid.Row="1" Margin="0,0,0,8" LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Left"
+                                   Text="Tìm nhanh"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   FontWeight="SemiBold"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="Xóa tìm"
+                                Margin="8,0,0,0"
+                                Padding="10,4"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ClearDashboardSearchCommand}"
+                                IsEnabled="{Binding HasDashboardSearchText}"
+                                ToolTip="Xóa từ khóa tìm nhanh"/>
+                        <TextBox Text="{Binding DashboardSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="28"
+                                 VerticalContentAlignment="Center"
+                                 Padding="8,2"
+                                 ToolTip="Tìm theo tên mặt hàng (không phân biệt dấu)"/>
+                    </DockPanel>
+
+                    <DataGrid x:Name="DashboardGrid"
+                              Grid.Row="2"
+                              ItemsSource="{Binding DashboardRowsView}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="{Binding DashboardGridReadOnly}"
+                              Margin="0,0,0,8"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.IsDeferredScrollingEnabled="True"
+                              ClipboardCopyMode="ExcludeHeader"
+                              SelectionUnit="CellOrRowHeader"
+                              helpers:ExcelLikeDataGridNavigation.IsEnabled="True"
+                              HeadersVisibility="Column"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              CopyingRowClipboardContent="DashboardGrid_OnCopyingRowClipboardContent"
+                              CellEditEnding="DashboardGrid_OnCellEditEnding">
+                        <DataGrid.Resources>
+                            <Style x:Key="DashboardFilterHeaderButton" TargetType="Button">
+                                <Setter Property="Width" Value="26"/>
+                                <Setter Property="Height" Value="22"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,3,0,0"/>
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="ToolTip" Value="Lọc dữ liệu trong cột"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="FilterButtonBorder"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="5">
+                                                <Grid>
+                                                    <!-- Biểu tượng phễu lọc, không phụ thuộc font biểu tượng ngoài. -->
+                                                    <Path x:Name="FilterIcon"
+                                                          Width="13"
+                                                          Height="13"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Stretch="Uniform"
+                                                          Fill="#64748B"
+                                                          Data="M 1,2 L 13,2 L 8.5,7 L 8.5,11 L 5.5,13 L 5.5,7 Z"/>
+                                                    <Ellipse x:Name="ActiveFilterDot"
+                                                             Width="5"
+                                                             Height="5"
+                                                             Margin="0,2,2,0"
+                                                             HorizontalAlignment="Right"
+                                                             VerticalAlignment="Top"
+                                                             Fill="#2563EB"
+                                                             Visibility="Collapsed"/>
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="FilterButtonBorder" Property="Background" Value="#E2E8F0"/>
+                                                    <Setter TargetName="FilterIcon" Property="Fill" Value="#2563EB"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="FilterButtonBorder" Property="Background" Value="#BFDBFE"/>
+                                                </Trigger>
+                                                <Trigger Property="Content" Value="Lọc ▾">
+                                                    <Setter TargetName="FilterButtonBorder" Property="Background" Value="#DBEAFE"/>
+                                                    <Setter TargetName="FilterIcon" Property="Fill" Value="#2563EB"/>
+                                                    <Setter TargetName="ActiveFilterDot" Property="Visibility" Value="Visible"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="FilterIcon" Property="Opacity" Value="0.4"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.CommandBindings>
+                            <CommandBinding Command="ApplicationCommands.Paste"
+                                            Executed="DashboardGrid_OnPasteExecuted"
+                                            CanExecute="DashboardGrid_OnCanPaste"/>
+                        </DataGrid.CommandBindings>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterAlignedCell}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="STT" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Width="110" MinWidth="96" SortMemberPath="Category" CanUserSort="True" ClipboardContentBinding="{Binding Category}">
+                                <DataGridTemplateColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Danh mục" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonCategory, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="Category"/>
+                                    </StackPanel>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Category}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedValue="{Binding Category, UpdateSourceTrigger=PropertyChanged}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value"
+                                                  ItemsSource="{Binding DataContext.DashboardCategoryOptions, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Binding="{Binding ItemName}" Width="180" MinWidth="120" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Tên mặt hàng" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonItemName, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="ItemName"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding Unit}" Width="70" MinWidth="48" IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterWrappedCell}">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="DVT" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonUnit, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="Unit"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding UnitPrice, StringFormat=N0}" Width="90"
+                                                ElementStyle="{StaticResource RightAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Đơn giá" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonUnitPrice, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="UnitPrice"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Width="120" MinWidth="100" SortMemberPath="UsageTypeDisplay" CanUserSort="True" ClipboardContentBinding="{Binding UsageTypeDisplay}">
+                                <DataGridTemplateColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Loại sử dụng" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonUsageType, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="UsageType"/>
+                                    </StackPanel>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding UsageTypeDisplay}"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Stretch"
+                                                   VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox SelectedValue="{Binding UsageType, UpdateSourceTrigger=PropertyChanged}"
+                                                  DisplayMemberPath="Display"
+                                                  SelectedValuePath="Value"
+                                                  HorizontalContentAlignment="Center"
+                                                  ItemsSource="{Binding DataContext.DashboardUsageTypePickList, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Binding="{Binding OpeningQuantity, StringFormat=N0}" Width="90"
+                                                ElementStyle="{StaticResource CenterAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Tồn đầu năm" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonOpeningQuantity, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="OpeningQuantity"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding ReceivedQuantity, StringFormat=N0}" Width="90"
+                                                ElementStyle="{StaticResource CenterAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Tổng nhập" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonReceivedQuantity, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="ReceivedQuantity"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding IssuedQuantity, StringFormat=N0}" Width="90"
+                                                ElementStyle="{StaticResource CenterAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Tổng xuất" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonIssuedQuantity, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="IssuedQuantity"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding ClosingQuantity, StringFormat=N0}" Width="100"
+                                                ElementStyle="{StaticResource CenterAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Tồn cuối năm" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonClosingQuantity, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="ClosingQuantity"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Binding="{Binding Amount, StringFormat=N0}" Width="110"
+                                                ElementStyle="{StaticResource RightAlignedCell}" IsReadOnly="True">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Thành tiền" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonAmount, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="Amount"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Width="160" MinWidth="100" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}"
+                                                ToolTipService.ToolTip="Ghi chú gắn mã hàng. Sửa trên Dashboard sẽ giữ tới khi có phiếu nhập (hoặc tồn đầu) ngày sau thời điểm sửa.">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel>
+                                        <TextBlock Text="Ghi chú" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                                        <Button Style="{StaticResource DashboardFilterHeaderButton}"
+                                                Content="{Binding DataContext.DashboardFilterButtonNote, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.OpenDashboardFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="Note"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                                <DataGridTextColumn.EditingElementStyle>
+                                    <Style TargetType="TextBox">
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="AcceptsReturn" Value="True"/>
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                        <Setter Property="VerticalAlignment" Value="Stretch"/>
+                                        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Padding" Value="2,2"/>
+                                        <Setter Property="MinHeight" Value="48"/>
+                                    </Style>
+                                </DataGridTextColumn.EditingElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <DockPanel Grid.Row="3" LastChildFill="False">
+                        <TextBlock DockPanel.Dock="Left" FontWeight="Bold" VerticalAlignment="Center"
+                                   Text="{Binding DashboardTotalAmount, StringFormat=Tổng thành tiền: {0:N0}}"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Bỏ thay đổi" Command="{Binding DiscardDashboardChangesCommand}"
+                                    IsEnabled="{Binding HasUnsavedDashboardMetadata}"
+                                    Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"/>
+                            <Button Content="Lưu thay đổi Dashboard" Command="{Binding SaveDashboardChangesCommand}"
+                                    IsEnabled="{Binding HasUnsavedDashboardMetadata}"
+                                    Style="{StaticResource PrimaryButtonStyle}"/>
+                        </StackPanel>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Phiếu nhập">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Tạo phiếu" Command="{Binding OpenCreateReceiptDialogCommand}" Margin="0,0,8,0" Style="{StaticResource SuccessButtonStyle}"/>
+                        <Button Content="Sửa" Command="{Binding OpenEditReceiptDialogCommand}" Margin="0,0,8,0" Style="{StaticResource WarningButtonStyle}"/>
+                        <Button Content="Xóa" Command="{Binding DeleteReceiptCommand}" Margin="0,0,8,0" Style="{StaticResource DangerButtonStyle}"/>
+                        <Button Content="Làm mới" Command="{Binding RefreshReceiptsCommand}" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                        <Button Content="Xuất Word" Command="{Binding ExportSelectedReceiptWordCommand}" Margin="0,0,8,0"
+                                Style="{StaticResource ExportButtonStyle}"
+                                ToolTip="Cần chọn template Word (Cài đặt → Template Word). Placeholder: ${SoPhieu}, ${Ngay}, ${STT}, ${MaHang}, ..."/>
+                        <Button Content="Xuất Excel" Command="{Binding ExportSelectedReceiptExcelCommand}"
+                                Style="{StaticResource ExportButtonStyle}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ReceiptsGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Receipts}"
+                              SelectedItem="{Binding SelectedReceipt}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              MouseDoubleClick="ReceiptsGrid_OnMouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="46" IsReadOnly="True">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox ToolTip="Chọn hoặc bỏ chọn tất cả phiếu nhập"
+                                              HorizontalAlignment="Center"
+                                              Checked="SelectAllReceipts_OnChanged"
+                                              Unchecked="SelectAllReceipts_OnChanged"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Xem" Width="54" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="👁" Width="32" Height="24" Padding="0"
+                                                ToolTip="Xem trước nội dung phiếu nhập"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding DataContext.PreviewReceiptCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Số phiếu" Binding="{Binding ReceiptNumber}" Width="120" MinWidth="90"/>
+                            <DataGridTextColumn Header="Ngày" Binding="{Binding ReceiptDate, StringFormat=dd/MM/yyyy}" Width="100"/>
+                            <DataGridTextColumn Header="Theo Kế hoạch" Binding="{Binding DeliveredBy}" Width="130" MinWidth="90"/>
+                            <DataGridTextColumn Header="Theo Hoá đơn số" Binding="{Binding DeliveredUnit}" Width="150" MinWidth="110"/>
+                            <DataGridTextColumn Header="Người nhận" Binding="{Binding ReceivedBy}" Width="120" MinWidth="80"/>
+                            <DataGridTextColumn Header="Lý do" Binding="{Binding Reason}" Width="160" MinWidth="100"/>
+                            <DataGridTextColumn Header="Trên cấp" Binding="{Binding UpperLevelAmount, StringFormat=N0}" Width="100" ElementStyle="{StaticResource RightAlignedCell}"/>
+                            <DataGridTextColumn Header="Tự mua sắm" Binding="{Binding SelfProcuredAmount, StringFormat=N0}" Width="110" ElementStyle="{StaticResource RightAlignedCell}"/>
+                            <DataGridTextColumn Header="Tổng tiền" Binding="{Binding TotalAmount, StringFormat=N0}" Width="110" ElementStyle="{StaticResource RightAlignedCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Phiếu cân đối">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Tạo phiếu cân đối" Command="{Binding OpenCreateIssueDialogCommand}" Margin="0,0,8,0"
+                                Style="{StaticResource SuccessButtonStyle}"
+                                ToolTip="Lưu phiếu cân đối và trừ tồn ngay. Phiếu xuất theo đơn vị được tạo tự động để in."/>
+                        <Button Content="Sửa" Command="{Binding OpenEditIssueDialogCommand}" Margin="0,0,8,0" Style="{StaticResource WarningButtonStyle}"/>
+                        <Button Content="Xóa" Command="{Binding DeleteIssueCommand}" Margin="0,0,8,0" Style="{StaticResource DangerButtonStyle}"/>
+                        <Button Content="Làm mới" Command="{Binding RefreshIssuesCommand}" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                        <Button Content="Xuất Word" Command="{Binding ExportSelectedIssueWordCommand}" Margin="0,0,8,0"
+                                Style="{StaticResource ExportButtonStyle}"
+                                ToolTip="Xuất phiếu cân đối dạng Word (sổ cân đối)."/>
+                        <Button Content="Xuất Excel" Command="{Binding ExportSelectedIssueExcelCommand}"
+                                Style="{StaticResource ExportButtonStyle}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="IssuesGrid"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Issues}"
+                              SelectedItem="{Binding SelectedIssue}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              MouseDoubleClick="IssuesGrid_OnMouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="46" IsReadOnly="True">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox ToolTip="Chọn hoặc bỏ chọn tất cả phiếu cân đối"
+                                              HorizontalAlignment="Center"
+                                              Checked="SelectAllIssues_OnChanged"
+                                              Unchecked="SelectAllIssues_OnChanged"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Xem" Width="54" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="👁" Width="32" Height="24" Padding="0"
+                                                ToolTip="Xem chi tiết phiếu cân đối"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding DataContext.PreviewIssueCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Tên phiếu cân đối" Binding="{Binding IssueNumber}" Width="*" MinWidth="160"/>
+                            <DataGridTextColumn Header="Thời gian" Binding="{Binding IssueDate, StringFormat=dd/MM/yyyy}" Width="120"/>
+                            <DataGridTextColumn Header="Số phiếu xuất" Binding="{Binding GeneratedUnitIssueCount}" Width="110" ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Tổng tiền" Binding="{Binding TotalAmount, StringFormat=N0}" Width="120" ElementStyle="{StaticResource RightAlignedCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Phiếu xuất đơn vị">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Padding="10" Margin="0,0,0,8"
+                            BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="6">
+                        <WrapPanel VerticalAlignment="Center">
+                            <TextBlock Text="Từ ngày" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <DatePicker SelectedDate="{Binding ManagedUnitIssueFromDate}" Width="130" Margin="0,0,12,0"/>
+                            <TextBlock Text="Đến ngày" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <DatePicker SelectedDate="{Binding ManagedUnitIssueToDate}" Width="130" Margin="0,0,12,0"/>
+                            <TextBlock Text="Đơn vị" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox ItemsSource="{Binding UnitReportUnitOptions}"
+                                      SelectedItem="{Binding SelectedManagedUnitIssueUnit}"
+                                      DisplayMemberPath="Display" Width="220" Margin="0,0,12,0"/>
+                            <TextBlock Text="Từ khóa" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding ManagedUnitIssueKeyword, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="190" Margin="0,0,12,0"
+                                     ToolTip="Số phiếu, mã/tên đơn vị, người nhận hoặc lý do"/>
+                            <Button Content="Lọc danh sách" Command="{Binding RefreshManagedUnitIssuesCommand}"
+                                    Style="{StaticResource PrimaryButtonStyle}"/>
+                        </WrapPanel>
+                    </Border>
+
+                    <Border Grid.Row="1" Padding="10,6" Margin="0,0,0,8"
+                            Background="#FFFFF7ED" BorderBrush="#FFF97316" BorderThickness="1" CornerRadius="4"
+                            Visibility="{Binding HasUnsavedManagedUnitIssues, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Có thay đổi phiếu xuất đơn vị chưa lưu — hãy bấm Lưu thay đổi."
+                                   Foreground="#FF9A3412" FontWeight="SemiBold"/>
+                    </Border>
+
+                    <DockPanel Grid.Row="2" Margin="0,0,0,8">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding ManagedUnitIssueSelectedCountText}"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="Bỏ thay đổi" Command="{Binding DiscardManagedUnitIssueChangesCommand}"
+                                    IsEnabled="{Binding HasUnsavedManagedUnitIssues}"
+                                    Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"/>
+                            <Button Content="Lưu thay đổi" Command="{Binding SaveManagedUnitIssuesCommand}"
+                                    IsEnabled="{Binding HasUnsavedManagedUnitIssues}"
+                                    Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
+                            <Button Content="Xuất phiếu Word đã chọn" Command="{Binding ExportManagedUnitIssuesWordCommand}"
+                                    Style="{StaticResource ExportButtonStyle}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DataGrid x:Name="ManagedUnitIssuesGrid" Grid.Row="3"
+                              ItemsSource="{Binding ManagedUnitIssueRows}"
+                              SelectedItem="{Binding SelectedManagedUnitIssue}"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
+                              helpers:ExcelLikeDataGridNavigation.IsEnabled="True"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              CellEditEnding="MainDraftGrid_OnCellEditEnding">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="46" IsReadOnly="True">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox ToolTip="Chọn hoặc bỏ chọn tất cả phiếu đang lọc"
+                                              HorizontalAlignment="Center"
+                                              Checked="SelectAllManagedUnitIssues_OnChanged"
+                                              Unchecked="SelectAllManagedUnitIssues_OnChanged"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Xem" Width="54" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="👁" Width="32" Height="24" Padding="0"
+                                                ToolTip="Xem trước nội dung phiếu"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding DataContext.PreviewManagedUnitIssueCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Mã đơn vị" Binding="{Binding UnitCode}" Width="95" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Tên đơn vị" Binding="{Binding UnitName}" Width="150" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Từ phiếu cân đối" Binding="{Binding ParentIssueNumber}" Width="135" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Số phiếu" Binding="{Binding IssueNumber, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
+                            <DataGridTemplateColumn Header="Ngày phiếu" Width="125">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding IssueDate, StringFormat=dd/MM/yyyy}" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <DatePicker SelectedDate="{Binding IssueDate, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Người nhận" Binding="{Binding ReceivedBy, UpdateSourceTrigger=PropertyChanged}" Width="150"/>
+                            <DataGridTextColumn Header="Lý do xuất" Binding="{Binding Reason, UpdateSourceTrigger=PropertyChanged}" Width="*" MinWidth="180"/>
+                            <DataGridTextColumn Header="Số khoản" Binding="{Binding LineCount, StringFormat=N0}" Width="75" IsReadOnly="True" ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Số lượng" Binding="{Binding TotalQuantity, StringFormat=N0}" Width="95" IsReadOnly="True" ElementStyle="{StaticResource RightAlignedCell}"/>
+                            <DataGridTextColumn Header="Thành tiền" Binding="{Binding TotalAmount, StringFormat=N0}" Width="110" IsReadOnly="True" ElementStyle="{StaticResource RightAlignedCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Tồn đầu năm">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Thêm dòng" Command="{Binding AddOpeningLineCommand}" Margin="0,0,8,0" Style="{StaticResource SuccessButtonStyle}"/>
+                        <Button Content="Xóa dòng đã chọn" Command="{Binding RemoveSelectedOpeningLinesCommand}" Margin="0,0,8,0" Style="{StaticResource DangerButtonStyle}"/>
+                        <Button Content="Import Excel" Command="{Binding ImportOpeningExcelCommand}" Margin="0,0,8,0" Style="{StaticResource ExportButtonStyle}"/>
+                        <Button Content="Chỉnh tổng tiền" Command="{Binding OpenOpeningTotalAdjustWindowCommand}" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"
+                                ToolTip="Nhập tổng tiền đúng để tự động gợi ý điều chỉnh đơn giá tồn đầu năm"/>
+                        <Button Content="Lưu tồn đầu năm" Command="{Binding SaveOpeningBalancesCommand}"
+                                IsEnabled="{Binding HasUnsavedOpeningBalances}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    </StackPanel>
+                    <Border Grid.Row="1" Padding="12,9" Margin="0,0,0,8"
+                            Background="#FFFEF3C7" BorderBrush="#FFF59E0B" BorderThickness="1.5" CornerRadius="5">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Left"
+                                       Text="⚠"
+                                       FontSize="20"
+                                       Foreground="#FFB45309"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <StackPanel>
+                                <TextBlock Text="Hãy kiểm tra kỹ tồn đầu năm"
+                                           Foreground="#FF92400E"
+                                           FontWeight="Bold"
+                                           FontSize="14"/>
+                                <TextBlock Text="Đảm bảo số lượng, đơn giá, danh mục và loại hàng chính xác trước khi thực hiện phiếu nhập hoặc phiếu cân đối."
+                                           Foreground="#FF78350F"
+                                           TextWrapping="Wrap"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Row="2" Padding="10,6" Margin="0,0,0,8"
+                            Background="#FFFFF7ED" BorderBrush="#FFF97316" BorderThickness="1" CornerRadius="4"
+                            Visibility="{Binding HasUnsavedOpeningBalances, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Có thay đổi tồn đầu chưa lưu — hãy bấm Lưu tồn đầu năm."
+                                   Foreground="#FF9A3412" FontWeight="SemiBold"/>
+                    </Border>
+                    <DataGrid Grid.Row="3" ItemsSource="{Binding OpeningBalanceLines}" AutoGenerateColumns="False"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              helpers:ExcelLikeDataGridNavigation.IsEnabled="True"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              CellEditEnding="MainDraftGrid_OnCellEditEnding">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="55" IsReadOnly="True">
+                                <DataGridTemplateColumn.Header>
+                                    <CheckBox ToolTip="Chọn hoặc bỏ chọn tất cả"
+                                              HorizontalAlignment="Center"
+                                              Checked="SelectAllOpeningLines_OnChanged"
+                                              Unchecked="SelectAllOpeningLines_OnChanged"/>
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="DanhMuc" Binding="{Binding Category, UpdateSourceTrigger=PropertyChanged}" Width="140" MinWidth="90"/>
+                            <DataGridTextColumn Header="TenMatHang" Binding="{Binding ItemName, UpdateSourceTrigger=PropertyChanged}" Width="200" MinWidth="120"/>
+                            <DataGridTextColumn Header="DVT" Binding="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" Width="70"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"
+                                                EditingElementStyle="{StaticResource CenterAlignedEditCell}"/>
+                            <DataGridTextColumn Header="Số lượng tồn đầu" Binding="{Binding OpeningQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Width="130" ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}" Width="100" ElementStyle="{StaticResource RightAlignedCell}"/>
+                            <DataGridTextColumn Header="LoaiHang" Binding="{Binding UsageType, UpdateSourceTrigger=PropertyChanged}" Width="120" MinWidth="90"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"
+                                                EditingElementStyle="{StaticResource CenterAlignedEditCell}"/>
+                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="160" MinWidth="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Đơn vị trực thuộc">
+                <Grid Margin="0,6,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Thêm đơn vị" Command="{Binding AddSubordinateUnitCommand}"
+                                Margin="0,0,8,0" Style="{StaticResource SuccessButtonStyle}"/>
+                        <Button Content="Bỏ thay đổi" Command="{Binding DiscardSubordinateUnitChangesCommand}"
+                                IsEnabled="{Binding HasUnsavedSubordinateUnits}"
+                                Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"
+                                ToolTip="Hủy các sửa đổi chưa lưu và tải lại danh sách đơn vị."/>
+                        <Button Content="Lưu thay đổi" Command="{Binding SaveSubordinateUnitsCommand}" Margin="0,0,8,0"
+                                IsEnabled="{Binding HasUnsavedSubordinateUnits}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                ToolTip="Lưu các thuộc tính đã sửa trên bảng."/>
+                        <Button Content="Xóa đơn vị" Command="{Binding DeleteSubordinateUnitCommand}"
+                                Style="{StaticResource DangerButtonStyle}"/>
+                    </StackPanel>
+                    <Border Grid.Row="1" Padding="10,6" Margin="0,0,0,8"
+                            Background="#FFFFF7ED" BorderBrush="#FFF97316" BorderThickness="1" CornerRadius="4"
+                            Visibility="{Binding HasUnsavedSubordinateUnits, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Có thay đổi đơn vị chưa lưu — hãy bấm Lưu thay đổi."
+                                   Foreground="#FF9A3412" FontWeight="SemiBold"/>
+                    </Border>
+                    <DataGrid x:Name="SubordinateUnitsGrid"
+                              Grid.Row="2"
+                              ItemsSource="{Binding SubordinateUnits}"
+                              SelectedItem="{Binding SelectedSubordinateUnit}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              AllowDrop="True"
+                              helpers:ExcelLikeDataGridNavigation.IsEnabled="True"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              LoadingRow="DataGrid_OnLoadingRow"
+                              CellEditEnding="MainDraftGrid_OnCellEditEnding"
+                              PreviewMouseLeftButtonDown="SubordinateUnitsGrid_OnPreviewMouseLeftButtonDown"
+                              PreviewMouseMove="SubordinateUnitsGrid_OnPreviewMouseMove"
+                              DragOver="SubordinateUnitsGrid_OnDragOver"
+                              Drop="SubordinateUnitsGrid_OnDrop"
+                              GiveFeedback="SubordinateUnitsGrid_OnGiveFeedback">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="STT"
+                                                Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
+                                                Width="50"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTemplateColumn Header="Kéo" Width="48" IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="⠿"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FF475569"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Cursor="SizeAll"
+                                                   ToolTip="Giữ và kéo thả để sắp xếp thứ tự"
+                                                   Tag="UnitDragHandle"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Mã đơn vị" Binding="{Binding UnitCode, UpdateSourceTrigger=PropertyChanged}" Width="100" MinWidth="80"/>
+                            <DataGridTextColumn Header="Tên đơn vị" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="160" MinWidth="120"/>
+                            <DataGridTextColumn Header="Người nhận" Binding="{Binding ReceivedBy, UpdateSourceTrigger=PropertyChanged}" Width="140" MinWidth="100"/>
+                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="*" MinWidth="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Tổng hợp xuất đơn vị">
+                <DockPanel Margin="0,8,0,0">
+
+                    <!-- Nút xuất — luôn hiển thị ở cuối -->
+                    <Border DockPanel.Dock="Bottom" Padding="0,12,0,4">
+                        <Button Content="⬇  Xuất Excel tổng hợp"
+                                Command="{Binding ExportUnitSummaryCommand}"
+                                Style="{StaticResource ExportButtonStyle}"
+                                FontSize="14"
+                                Padding="20,8"
+                                HorizontalAlignment="Left"
+                                ToolTip="Xuất file Excel tổng hợp các mặt hàng đã xuất cho từng đơn vị đã chọn"/>
+                    </Border>
+
+                    <!-- Các bước — cuộn được khi cửa sổ nhỏ -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,12,0">
+
+                            <!-- Bước 1: Chọn khoảng thời gian -->
+                            <Border Margin="0,0,0,12" Padding="12"
+                                    BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock FontWeight="Bold" FontSize="13" Margin="0,0,0,8"
+                                               Foreground="#FF1E40AF">
+                                        <Run Text="Bước 1"/>
+                                        <Run Text=" — Chọn khoảng thời gian" Foreground="#FF374151"/>
+                                    </TextBlock>
+                                    <WrapPanel>
+                                        <TextBlock Text="Từ ngày" VerticalAlignment="Center" Margin="0,0,6,0" Width="65"/>
+                                        <DatePicker SelectedDate="{Binding SummarySummaryFromDate}"
+                                                    Width="140" Margin="0,0,24,0"/>
+                                        <TextBlock Text="Đến ngày" VerticalAlignment="Center" Margin="0,0,6,0" Width="65"/>
+                                        <DatePicker SelectedDate="{Binding SummarySummaryToDate}"
+                                                    Width="140"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Bước 2: Chọn đơn vị -->
+                            <Border Margin="0,0,0,12" Padding="12"
+                                    BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="6">
+                                <StackPanel>
+                                    <DockPanel Margin="0,0,0,8">
+                                        <TextBlock DockPanel.Dock="Left"
+                                                   FontWeight="Bold" FontSize="13"
+                                                   Foreground="#FF1E40AF"
+                                                   VerticalAlignment="Center">
+                                            <Run Text="Bước 2"/>
+                                            <Run Text=" — Chọn đơn vị" Foreground="#FF374151"/>
+                                        </TextBlock>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                                    HorizontalAlignment="Right">
+                                            <Button Content="Chọn tất cả"
+                                                    Command="{Binding SelectAllSummaryUnitsCommand}"
+                                                    Margin="0,0,6,0" Padding="10,3"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                            <Button Content="Bỏ chọn tất cả"
+                                                    Command="{Binding DeselectAllSummaryUnitsCommand}"
+                                                    Padding="10,3"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Danh sách dọc, cuộn nếu nhiều đơn vị -->
+                                    <Border BorderBrush="#FFE5E7EB" BorderThickness="1" CornerRadius="4"
+                                            Padding="6,4" MaxHeight="220">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl ItemsSource="{Binding SummaryUnitOptions}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Content="{Binding UnitDisplay}"
+                                                                  Padding="6,5"
+                                                                  Margin="0,1"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                                <!-- Danh sách dọc -->
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Vertical"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Bước 3: Tùy chọn hiển thị nhãn -->
+                            <Border Margin="0,0,0,4" Padding="12"
+                                    BorderBrush="#FFD1D5DB" BorderThickness="1" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock FontWeight="Bold" FontSize="13" Margin="0,0,0,10"
+                                               Foreground="#FF1E40AF">
+                                        <Run Text="Bước 3"/>
+                                        <Run Text=" — Tùy chọn hiển thị nhãn đơn vị" Foreground="#FF374151"/>
+                                    </TextBlock>
+
+                                    <!-- Nhãn cột / sheet -->
+                                    <TextBlock Text="Hiển thị nhãn cột &amp; tên sheet theo:" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                                    <StackPanel Orientation="Vertical" Margin="12,0,0,0">
+                                        <RadioButton Content="Tên đơn vị"
+                                                     Margin="0,0,0,6" Padding="4,4"
+                                                     IsChecked="{Binding SummaryLabelByCode,
+                                                         Converter={StaticResource InverseBoolConverter}}"/>
+                                        <RadioButton Content="Mã đơn vị"
+                                                     Padding="4,4"
+                                                     IsChecked="{Binding SummaryLabelByCode}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+    <views:BusyOverlay Panel.ZIndex="10"
+                       Message="{Binding BusyMessage}"
+                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+    </Grid>
+</Window>

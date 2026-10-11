@@ -531,6 +531,139 @@ public sealed class SettingsAndViewModelTests
         Assert.Equal(3, visibleWhenShown.Count);
     }
 
+    [Fact]
+    public void Balance_export_preferences_round_trip_and_default_to_true()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = Path.Combine(directory.Path, "ui-preferences.json");
+
+        Assert.True(UiPreferenceService.LoadOmitZeroStockAtIssueDate(settingsPath));
+        Assert.True(UiPreferenceService.LoadHideZeroQuantityBalanceExport(settingsPath));
+
+        UiPreferenceService.SaveOmitZeroStockAtIssueDate(false, settingsPath);
+        Assert.False(UiPreferenceService.LoadOmitZeroStockAtIssueDate(settingsPath));
+        Assert.True(UiPreferenceService.LoadHideZeroQuantityBalanceExport(settingsPath));
+
+        UiPreferenceService.SaveHideZeroQuantityBalanceExport(false, settingsPath);
+        Assert.False(UiPreferenceService.LoadHideZeroQuantityBalanceExport(settingsPath));
+
+        UiPreferenceService.SaveOmitZeroStockAtIssueDate(true, settingsPath);
+        UiPreferenceService.SaveHideZeroQuantityBalanceExport(true, settingsPath);
+        Assert.True(UiPreferenceService.LoadOmitZeroStockAtIssueDate(settingsPath));
+        Assert.True(UiPreferenceService.LoadHideZeroQuantityBalanceExport(settingsPath));
+    }
+
+    [Fact]
+    public void BalanceExportDialogWindow_filters_zero_quantity_and_respects_both_preferences()
+    {
+        RunInSta(() =>
+        {
+            var item1 = new Item { Id = 1, ItemCode = "VT01", ItemName = "Vật tư 1", Category = "A", Unit = "Cái", UnitPrice = 100m };
+            var item2 = new Item { Id = 2, ItemCode = "VT02", ItemName = "Vật tư 2", Category = "A", Unit = "Cái", UnitPrice = 200m };
+            var item3 = new Item { Id = 3, ItemCode = "VT03", ItemName = "Vật tư 3", Category = "B", Unit = "Hộp", UnitPrice = 300m };
+
+            var itemsDict = new Dictionary<int, Item>
+            {
+                [1] = item1,
+                [2] = item2,
+                [3] = item3
+            };
+
+            var balance = new Issue
+            {
+                Id = 100,
+                IssueNumber = "CD-01",
+                IssueDate = new DateTime(2026, 10, 11),
+                Lines =
+                [
+                    new IssueLine { Id = 1, ItemId = 1, Quantity = 5m, UnitPrice = 100m, Amount = 500m },
+                    new IssueLine { Id = 2, ItemId = 2, Quantity = 0m, UnitPrice = 200m, Amount = 0m },
+                    new IssueLine { Id = 3, ItemId = 3, Quantity = 2m, UnitPrice = 300m, Amount = 600m }
+                ]
+            };
+
+            var snapshots = new Dictionary<int, BalanceStockSnapshot>
+            {
+                [1] = new BalanceStockSnapshot(10m, 5m),
+                [2] = new BalanceStockSnapshot(10m, 10m),
+                [3] = new BalanceStockSnapshot(0m, 0m)
+            };
+
+            var dialog = new BalanceExportDialogWindow(
+                balance,
+                itemsDict,
+                snapshots,
+                initialOmitZeroStock: true,
+                initialHideZeroQuantity: true);
+
+            Assert.True(dialog.IsOmitZeroStockChecked);
+            Assert.True(dialog.IsHideZeroQuantityChecked);
+
+            var visibleRows = dialog.RowsView.Cast<BalanceExportDialogWindow.BalanceExportItemRow>().ToList();
+            Assert.Equal(2, visibleRows.Count);
+            Assert.DoesNotContain(visibleRows, x => x.LineId == 2);
+
+            var row1 = visibleRows.Single(x => x.LineId == 1);
+            Assert.True(row1.IsSelected);
+
+            var row3 = visibleRows.Single(x => x.LineId == 3);
+            Assert.False(row3.IsSelected);
+
+            dialog.SetHideZeroQuantity(false);
+            var allVisible = dialog.RowsView.Cast<BalanceExportDialogWindow.BalanceExportItemRow>().ToList();
+            Assert.Equal(3, allVisible.Count);
+            Assert.Contains(allVisible, x => x.LineId == 2);
+        });
+    }
+
+    private static void RunInSta(Action action)
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                if (System.Windows.Application.Current is null)
+                {
+                    _ = new System.Windows.Application();
+                }
+
+                var app = System.Windows.Application.Current;
+                if (!app.Resources.Contains("PrimaryButtonStyle"))
+                {
+                    try
+                    {
+                        var uri = new Uri("pack://application:,,,/APPQuanlyNXT;component/App.xaml", UriKind.Absolute);
+                        app.Resources.MergedDictionaries.Add(new System.Windows.ResourceDictionary { Source = uri });
+                    }
+                    catch
+                    {
+                        var dummyStyle = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["PrimaryButtonStyle"] = dummyStyle;
+                        app.Resources["SecondaryButtonStyle"] = dummyStyle;
+                        app.Resources["ExportButtonStyle"] = dummyStyle;
+                        app.Resources["DangerButtonStyle"] = dummyStyle;
+                        app.Resources["WarningButtonStyle"] = dummyStyle;
+                        app.Resources["SuccessButtonStyle"] = dummyStyle;
+                    }
+                }
+
+                action();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (exception is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception).Throw();
+        }
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

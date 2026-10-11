@@ -4,9 +4,10 @@
    - Khi người dùng bấm **Xuất sổ cân đối** (hoặc **Xuất Word** / **Xuất Excel** của phiếu cân đối), ứng dụng hiển thị hộp thoại `BalanceExportDialogWindow`.
    - Hộp thoại này chứa:
      - Checkbox **"Bỏ mặt hàng tồn ngày lập phiếu bằng 0"**: Mặc định được tick (`true`).
+     - Checkbox **"Ẩn mặt hàng không xuất gì"**: Mặc định được tick (`true`).
      - Bảng danh sách (DataGrid) chi tiết các mặt hàng:
-       - Các mặt hàng có `Tồn ngày lập phiếu > 0`: Mặc định được tick chọn (`IsSelected = true`).
-       - Các mặt hàng có `Tồn ngày lập phiếu <= 0`: Mặc định không được tick chọn (`IsSelected = false`).
+       - Các mặt hàng có `Tồn ngày lập phiếu > 0` và `Số lượng xuất > 0`: Mặc định được tick chọn (`IsSelected = true`).
+       - Các mặt hàng có `Tồn ngày lập phiếu <= 0` hoặc `Số lượng xuất <= 0`: Mặc định không được tick chọn (`IsSelected = false`).
      - Thanh tìm kiếm mặt hàng (theo mã, tên, danh mục).
      - Nút "Chọn tất cả" và "Bỏ chọn tất cả".
      - Dòng tóm tắt tự động cập nhật: số lượng mặt hàng đã tick / tổng số mặt hàng, kèm tổng tiền của các mặt hàng được chọn.
@@ -18,7 +19,10 @@
    - Các biến tổng quan (`${SoKhoan}`, `${sokhoanchu}`, `${TongTien}`, `${TongTienBangChu}`, ô Tổng tiền trên Excel) khớp chính xác với những mặt hàng được tick chọn.
 
 3. **Ghi nhớ cấu hình (User Preferences)**:
-   - Trạng thái của Checkbox "Bỏ mặt hàng tồn ngày lập phiếu bằng 0" được lưu và đọc qua `UiPreferenceService`, mặc định luôn là `true`.
+   - Trạng thái của cả 2 Checkbox:
+     - "Bỏ mặt hàng tồn ngày lập phiếu bằng 0" (`OmitZeroStockAtIssueDate`).
+     - "Ẩn mặt hàng không xuất gì" (`HideZeroQuantityBalanceExport`).
+   - Cả 2 trạng thái này được tự động lưu lại mỗi khi người dùng tick hoặc bỏ tick, và được nạp lại chính xác ở lần mở popup gần nhất. Mặc định ban đầu luôn là `true`.
 
 4. **Popup chọn mặt hàng đưa vào sổ cân đối (`ItemPickerWindow`)**:
    - **Cột hiển thị tồn**: Thêm cột `Tồn ngày lập phiếu` (định dạng `N0`, in đậm) vào cả hai tab (Danh sách đầy đủ và Theo phiếu nhập). Bổ sung đầy đủ cột `Tên mặt hàng` và `ĐVT` để tiện theo dõi.
@@ -29,4 +33,4 @@
    - **Hiệu năng tải tồn**: Sử dụng batch availability resolver (`ResolveAvailabilityBatchAsync`) nạp tồn hàng loạt tức thì trước khi hiển thị popup, không gây giật lag.
 
 5. **Lược bỏ nút Xuất Excel và Checkbox bỏ tồn = 0 ở thanh công cụ ngoài**:
-   - Vì hộp thoại `BalanceExportDialogWindow` (khi nhấn nút **Xuất sổ cân đối**) đã tích hợp đầy đủ cả hai tùy chọn: xuất ra Word hoặc xuất ra Excel, cùng checkbox bỏ tồn ngày lập phiếu = 0 và bảng tick từng dòng mặt hàng, nên nút "Xuất Excel" và checkbox "Bỏ mặt hàng tồn ngày lập phiếu bằng 0 khi xuất sổ" ở thanh công cụ bên ngoài (tại `MainWindow.xaml` và `BalanceIssueDetailWindow.xaml`) đã được lược bỏ để giao diện gọn gàng, trực quan và không bị trùng lặp chức năng.
+   - Vì hộp thoại `BalanceExportDialogWindow` (khi nhấn nút **Xuất sổ cân đối**) đã tích hợp đầy đủ cả hai tùy chọn: xuất ra Word hoặc xuất ra Excel, cùng checkbox bỏ tồn ngày lập phiếu = 0, checkbox ẩn mặt hàng không xuất gì và bảng tick từng dòng mặt hàng, nên nút "Xuất Excel" và checkbox thừa ở thanh công cụ bên ngoài đã được lược bỏ để giao diện gọn gàng, trực quan và không bị trùng lặp chức năng.

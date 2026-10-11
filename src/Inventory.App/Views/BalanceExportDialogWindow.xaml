@@ -6,8 +6,8 @@
         ResizeMode="CanResize"
         Title="Xuất sổ cân đối - Chọn mặt hàng"
         Height="620"
-        Width="990"
-        MinWidth="750"
+        Width="1040"
+        MinWidth="800"
         MinHeight="400"
         ShowInTaskbar="False">
     <Window.Resources>
@@ -59,6 +59,14 @@
                               Checked="OmitZeroStock_OnChanged"
                               Unchecked="OmitZeroStock_OnChanged"
                               ToolTip="Tự động bỏ tick các mặt hàng có tồn ngày lập phiếu bằng 0."/>
+                    <CheckBox x:Name="HideZeroQuantityCheckBox"
+                              Content="Ẩn mặt hàng không xuất gì"
+                              FontWeight="SemiBold"
+                              VerticalAlignment="Center"
+                              Margin="0,0,16,0"
+                              Checked="HideZeroQuantity_OnChanged"
+                              Unchecked="HideZeroQuantity_OnChanged"
+                              ToolTip="Ẩn các mặt hàng không có số lượng xuất trong sổ cân đối này (Số lượng xuất = 0)."/>
                     <Button Content="Chọn tất cả" Padding="10,4" Margin="0,0,8,0" Click="SelectAll_OnClick" Style="{StaticResource PrimaryButtonStyle}"/>
                     <Button Content="Bỏ chọn tất cả" Padding="10,4" Margin="0,0,16,0" Click="DeselectAll_OnClick" Style="{StaticResource SecondaryButtonStyle}"/>
                 </StackPanel>

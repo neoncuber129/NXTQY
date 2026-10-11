@@ -17,7 +17,8 @@ public enum BalanceExportFormat
 public sealed record BalanceExportResult(
     BalanceExportFormat Format,
     IReadOnlySet<int> SelectedLineIds,
-    bool OmitZeroStock);
+    bool OmitZeroStock,
+    bool HideZeroQuantity = true);
 
 public partial class BalanceExportDialogWindow : Window
 {
@@ -62,16 +63,32 @@ public partial class BalanceExportDialogWindow : Window
     private bool _suppressSelectionSync;
 
     public BalanceExportResult? Result { get; private set; }
+    public IReadOnlyList<BalanceExportItemRow> AllRows => _allRows.ToList();
+    public ICollectionView RowsView => _rowsView;
+    public bool IsOmitZeroStockChecked => OmitZeroStockCheckBox.IsChecked == true;
+    public bool IsHideZeroQuantityChecked => HideZeroQuantityCheckBox.IsChecked == true;
+
+    public void SetHideZeroQuantity(bool value)
+    {
+        HideZeroQuantityCheckBox.IsChecked = value;
+    }
+
+    public void SetOmitZeroStock(bool value)
+    {
+        OmitZeroStockCheckBox.IsChecked = value;
+    }
 
     public BalanceExportDialogWindow(
         Issue balance,
         IReadOnlyDictionary<int, Item> itemsById,
         IReadOnlyDictionary<int, BalanceStockSnapshot> stockSnapshots,
-        bool? initialOmitZeroStock = null)
+        bool? initialOmitZeroStock = null,
+        bool? initialHideZeroQuantity = null)
     {
         InitializeComponent();
 
         var omitZero = initialOmitZeroStock ?? UiPreferenceService.LoadOmitZeroStockAtIssueDate();
+        var hideZeroQuantity = initialHideZeroQuantity ?? UiPreferenceService.LoadHideZeroQuantityBalanceExport();
 
         HeaderText.Text = $"Sổ cân đối: {balance.IssueNumber} (Ngày lập: {balance.IssueDate:dd/MM/yyyy})";
 
@@ -83,6 +100,16 @@ public partial class BalanceExportDialogWindow : Window
 
             var totalAtIssueDate = snapshot?.TotalQuantity ?? 0m;
             var remainingAtIssueDate = snapshot?.RemainingQuantity ?? 0m;
+
+            var isSelected = true;
+            if (hideZeroQuantity && line.Quantity <= 0)
+            {
+                isSelected = false;
+            }
+            else if (omitZero && totalAtIssueDate <= 0)
+            {
+                isSelected = false;
+            }
 
             var row = new BalanceExportItemRow
             {
@@ -99,7 +126,7 @@ public partial class BalanceExportDialogWindow : Window
                 UnitPrice = line.UnitPrice,
                 Amount = line.Amount,
                 Note = line.Note ?? string.Empty,
-                IsSelected = omitZero ? totalAtIssueDate > 0 : true
+                IsSelected = isSelected
             };
 
             row.PropertyChanged += OnRowPropertyChanged;
@@ -112,14 +139,21 @@ public partial class BalanceExportDialogWindow : Window
 
         _suppressSelectionSync = true;
         OmitZeroStockCheckBox.IsChecked = omitZero;
+        HideZeroQuantityCheckBox.IsChecked = hideZeroQuantity;
         _suppressSelectionSync = false;
 
+        _rowsView.Refresh();
         UpdateSummary();
     }
 
     private bool FilterRow(object item)
     {
         if (item is not BalanceExportItemRow row)
+        {
+            return false;
+        }
+
+        if (HideZeroQuantityCheckBox?.IsChecked == true && row.Quantity <= 0)
         {
             return false;
         }
@@ -184,10 +218,46 @@ public partial class BalanceExportDialogWindow : Window
         {
             if (row.TotalAtIssueDate <= 0)
             {
-                row.IsSelected = !omit;
+                if (omit)
+                {
+                    row.IsSelected = false;
+                }
+                else
+                {
+                    // Chỉ chọn lại nếu dòng này không bị ẩn do số lượng xuất = 0
+                    if (HideZeroQuantityCheckBox.IsChecked != true || row.Quantity > 0)
+                    {
+                        row.IsSelected = true;
+                    }
+                }
             }
         }
 
+        UpdateSummary();
+    }
+
+    private void HideZeroQuantity_OnChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressSelectionSync)
+        {
+            return;
+        }
+
+        var hide = HideZeroQuantityCheckBox.IsChecked == true;
+        UiPreferenceService.SaveHideZeroQuantityBalanceExport(hide);
+
+        if (hide)
+        {
+            foreach (var row in _allRows)
+            {
+                if (row.Quantity <= 0)
+                {
+                    row.IsSelected = false;
+                }
+            }
+        }
+
+        _rowsView.Refresh();
         UpdateSummary();
     }
 
@@ -277,7 +347,8 @@ public partial class BalanceExportDialogWindow : Window
         Result = new BalanceExportResult(
             format,
             selectedIds,
-            OmitZeroStockCheckBox.IsChecked == true);
+            OmitZeroStockCheckBox.IsChecked == true,
+            HideZeroQuantityCheckBox.IsChecked == true);
 
         DialogResult = true;
         Close();

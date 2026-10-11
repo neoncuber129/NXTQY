@@ -81,6 +81,21 @@ public partial class ItemPickerWindow : Window
             return;
         }
 
+        var zeroStockItems = merged.Values.Where(x => x.AvailableStock <= 0).ToList();
+        if (zeroStockItems.Count > 0)
+        {
+            var message = $"Cảnh báo: Có {zeroStockItems.Count} mặt hàng được chọn có tồn ngày lập phiếu <= 0 (tính đến ngày {_viewModel.AtDate:dd/MM/yyyy}):\n- "
+                + string.Join("\n- ", zeroStockItems.Take(5).Select(x => $"{x.ItemCode} - {x.ItemName} (Tồn: {x.AvailableStock:N0})"))
+                + (zeroStockItems.Count > 5 ? $"\n... và {zeroStockItems.Count - 5} mặt hàng khác." : "")
+                + "\n\nBạn có chắc chắn muốn đưa vào phiếu cân đối không?";
+
+            var confirm = MessageBox.Show(this, message, "Cảnh báo tồn ngày lập phiếu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
         SelectedItems = merged.Values.ToList();
         DialogResult = true;
     }
@@ -98,6 +113,7 @@ public sealed partial class ItemPickerViewModel : ObservableObject
     private readonly Dictionary<int, Item> _itemById;
     private readonly Func<int, Task<Receipt?>> _receiptResolver;
     private readonly Func<string, DateTime, Task<decimal>> _availabilityResolver;
+    private readonly Func<IReadOnlyList<string>, DateTime, Task<IReadOnlyDictionary<string, decimal>>>? _availabilityBatchResolver;
     private readonly DateTime _atDate;
     private readonly HashSet<string> _alreadyOnVoucher;
 
@@ -107,7 +123,16 @@ public sealed partial class ItemPickerViewModel : ObservableObject
     public ICollectionView FullItemsView { get; }
     public ICollectionView ReceiptItemsView { get; }
 
-    [ObservableProperty] private bool filterOutZeroStock = true;
+    public DateTime AtDate => _atDate;
+    public string DateNoticeText => $"Lưu ý: Tồn ngày lập phiếu được tính đến ngày {_atDate:dd/MM/yyyy} (ngày lập phiếu đã chọn).";
+
+    [ObservableProperty] private bool hideZeroStock = true;
+    public bool FilterOutZeroStock
+    {
+        get => HideZeroStock;
+        set => HideZeroStock = value;
+    }
+
     [ObservableProperty] private string searchText = string.Empty;
 
     public ItemPickerViewModel(
@@ -117,7 +142,8 @@ public sealed partial class ItemPickerViewModel : ObservableObject
         IEnumerable<string> alreadyOnVoucher,
         DateTime atDate,
         Func<int, Task<Receipt?>> receiptResolver,
-        Func<string, DateTime, Task<decimal>> availabilityResolver)
+        Func<string, DateTime, Task<decimal>> availabilityResolver,
+        Func<IReadOnlyList<string>, DateTime, Task<IReadOnlyDictionary<string, decimal>>>? availabilityBatchResolver = null)
     {
         FullItems = new ObservableCollection<IssueSelectableItemViewModel>(fullItems);
         Receipts = new ObservableCollection<IssueReceiptSuggestionViewModel>(receipts);
@@ -128,17 +154,70 @@ public sealed partial class ItemPickerViewModel : ObservableObject
         _atDate = atDate;
         _receiptResolver = receiptResolver;
         _availabilityResolver = availabilityResolver;
+        _availabilityBatchResolver = availabilityBatchResolver;
 
         FullItemsView = CollectionViewSource.GetDefaultView(FullItems);
         ReceiptItemsView = CollectionViewSource.GetDefaultView(ReceiptItems);
-        FullItemsView.Filter = item => item is IssueSelectableItemViewModel row && MatchesSearch(row);
-        ReceiptItemsView.Filter = item => item is ReceiptPickedItemViewModel row && MatchesSearch(row);
+
+        FullItemsView.Filter = item => item is IssueSelectableItemViewModel row
+            && (!HideZeroStock || row.AvailableStock > 0)
+            && MatchesSearch(row);
+
+        ReceiptItemsView.Filter = item => item is ReceiptPickedItemViewModel row
+            && (!HideZeroStock || row.AvailableStock > 0)
+            && MatchesSearch(row);
+    }
+
+    partial void OnHideZeroStockChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FilterOutZeroStock));
+        FullItemsView.Refresh();
+        ReceiptItemsView.Refresh();
     }
 
     partial void OnSearchTextChanged(string value)
     {
         FullItemsView.Refresh();
         ReceiptItemsView.Refresh();
+    }
+
+    public async Task LoadAvailabilityAsync()
+    {
+        var codes = FullItems
+            .Select(x => x.ItemCode)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (codes.Count == 0)
+        {
+            return;
+        }
+
+        if (_availabilityBatchResolver is not null)
+        {
+            var dict = await _availabilityBatchResolver(codes, _atDate);
+            foreach (var item in FullItems)
+            {
+                if (dict.TryGetValue(item.ItemCode, out var stock))
+                {
+                    item.AvailableStock = stock;
+                }
+                else
+                {
+                    item.AvailableStock = 0m;
+                }
+            }
+        }
+        else
+        {
+            foreach (var item in FullItems)
+            {
+                item.AvailableStock = await _availabilityResolver(item.ItemCode, _atDate);
+            }
+        }
+
+        FullItemsView.Refresh();
     }
 
     private bool MatchesSearch(IssueSelectableItemViewModel item)
@@ -165,7 +244,7 @@ public sealed partial class ItemPickerViewModel : ObservableObject
             throw new InvalidOperationException("Vui lòng chọn ít nhất một phiếu nhập.");
         }
 
-        var availableByCode = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var candidateItems = new List<(Item Item, string ReceiptNumber, string? Note)>();
         var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var suggestion in selected)
@@ -183,28 +262,43 @@ public sealed partial class ItemPickerViewModel : ObservableObject
                     continue;
                 }
 
-                if (_alreadyOnVoucher.Contains(item.ItemCode) || added.Contains(item.ItemCode))
+                if (_alreadyOnVoucher.Contains(item.ItemCode) || !added.Add(item.ItemCode))
                 {
                     continue;
                 }
 
-                if (FilterOutZeroStock)
-                {
-                    if (!availableByCode.TryGetValue(item.ItemCode, out var stock))
-                    {
-                        stock = await _availabilityResolver(item.ItemCode, _atDate);
-                        availableByCode[item.ItemCode] = stock;
-                    }
-
-                    if (stock <= 0)
-                    {
-                        continue;
-                    }
-                }
-
-                ReceiptItems.Add(new ReceiptPickedItemViewModel(item, suggestion.ReceiptNumber, line.Note));
-                added.Add(item.ItemCode);
+                candidateItems.Add((item, suggestion.ReceiptNumber, line.Note));
             }
+        }
+
+        var distinctCodes = candidateItems
+            .Select(x => x.Item.ItemCode)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        IReadOnlyDictionary<string, decimal> stockMap;
+        if (_availabilityBatchResolver is not null)
+        {
+            stockMap = await _availabilityBatchResolver(distinctCodes, _atDate);
+        }
+        else
+        {
+            var dict = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var code in distinctCodes)
+            {
+                dict[code] = await _availabilityResolver(code, _atDate);
+            }
+            stockMap = dict;
+        }
+
+        foreach (var candidate in candidateItems)
+        {
+            stockMap.TryGetValue(candidate.Item.ItemCode, out var stock);
+            var pickedItem = new ReceiptPickedItemViewModel(candidate.Item, candidate.ReceiptNumber, candidate.Note)
+            {
+                AvailableStock = stock
+            };
+            ReceiptItems.Add(pickedItem);
         }
 
         ReceiptItemsView.Refresh();

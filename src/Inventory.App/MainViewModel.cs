@@ -112,6 +112,13 @@ public partial class MainViewModel(
     {
         UiPreferenceService.SaveIsModeB(value);
     }
+
+    [ObservableProperty] private bool omitZeroStockAtIssueDate = UiPreferenceService.LoadOmitZeroStockAtIssueDate();
+
+    partial void OnOmitZeroStockAtIssueDateChanged(bool value)
+    {
+        UiPreferenceService.SaveOmitZeroStockAtIssueDate(value);
+    }
     [ObservableProperty] private string wordTemplateFolderPath = string.Empty;
     [ObservableProperty] private string receiptWordTemplatePath = string.Empty;
     [ObservableProperty] private string issueWordTemplatePath = string.Empty;
@@ -1618,22 +1625,64 @@ public partial class MainViewModel(
                     ?? throw new InvalidOperationException("Không tìm thấy chi tiết phiếu cân đối.");
                 var stockSnapshots = await inventoryService.GetBalanceStockSnapshotsAsync(balance.Id);
 
-                var balanceOutput = SaveWordFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.docx");
-                if (balanceOutput is null)
+                var exportDialog = new BalanceExportDialogWindow(
+                    balance,
+                    itemsById,
+                    stockSnapshots)
+                {
+                    Owner = Application.Current.MainWindow
+                };
+
+                if (exportDialog.ShowDialog() != true || exportDialog.Result is null)
                 {
                     return;
                 }
 
-                await RunBusyAsync(
-                    "Đang xuất Word phiếu cân đối...",
-                    () => wordExportService.ExportBalanceOverview(
-                        BalanceWordTemplatePath,
-                        balanceOutput,
-                        balance,
-                        itemsById,
-                        overviewUnits,
-                        stockSnapshots));
-                StatusMessage = $"Đã xuất phiếu cân đối: {balanceOutput}";
+                var exportResult = exportDialog.Result;
+                if (exportResult.Format == BalanceExportFormat.Word)
+                {
+                    var balanceOutput = SaveWordFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.docx");
+                    if (balanceOutput is null)
+                    {
+                        return;
+                    }
+
+                    await RunBusyAsync(
+                        "Đang xuất Word phiếu cân đối...",
+                        () => wordExportService.ExportBalanceOverview(
+                            BalanceWordTemplatePath,
+                            balanceOutput,
+                            balance,
+                            itemsById,
+                            overviewUnits,
+                            stockSnapshots,
+                            omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                            selectedLineIds: exportResult.SelectedLineIds));
+                    StatusMessage = $"Đã xuất phiếu cân đối: {balanceOutput}";
+                }
+                else
+                {
+                    var unitIssues = await inventoryService.GetGeneratedUnitIssuesAsync(balance.Id);
+                    var output = SaveExcelFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.xlsx");
+                    if (output is null)
+                    {
+                        return;
+                    }
+
+                    await RunBusyAsync(
+                        "Đang xuất Excel phiếu cân đối...",
+                        () => _inventoryExcelExportService.ExportBalance(
+                            output,
+                            balance,
+                            itemsById,
+                            overviewUnits,
+                            stockSnapshots,
+                            unitIssues,
+                            omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                            selectedLineIds: exportResult.SelectedLineIds));
+                    StatusMessage =
+                        $"Đã xuất Excel phiếu cân đối và {unitIssues.Count} phiếu đơn vị: {output}";
+                }
             }
             else
             {
@@ -1659,7 +1708,8 @@ public partial class MainViewModel(
                                 balance,
                                 itemsById,
                                 overviewUnits,
-                                stockSnapshots);
+                                stockSnapshots,
+                                OmitZeroStockAtIssueDate);
                         }
                     });
                 StatusMessage = $"Đã xuất {selected.Count} phiếu cân đối (Word) vào thư mục: {folder}";
@@ -1698,24 +1748,72 @@ public partial class MainViewModel(
                 var balance = await inventoryService.GetIssueByIdAsync(issueSummary.Id)
                     ?? throw new InvalidOperationException("Không tìm thấy chi tiết phiếu cân đối.");
                 var snapshots = await inventoryService.GetBalanceStockSnapshotsAsync(balance.Id);
-                var unitIssues = await inventoryService.GetGeneratedUnitIssuesAsync(balance.Id);
-                var output = SaveExcelFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.xlsx");
-                if (output is null)
+
+                var exportDialog = new BalanceExportDialogWindow(
+                    balance,
+                    itemsById,
+                    snapshots)
+                {
+                    Owner = Application.Current.MainWindow
+                };
+
+                if (exportDialog.ShowDialog() != true || exportDialog.Result is null)
                 {
                     return;
                 }
 
-                await RunBusyAsync(
-                    "Đang xuất Excel phiếu cân đối...",
-                    () => _inventoryExcelExportService.ExportBalance(
-                        output,
-                        balance,
-                        itemsById,
-                        units,
-                        snapshots,
-                        unitIssues));
-                StatusMessage =
-                    $"Đã xuất Excel phiếu cân đối và {unitIssues.Count} phiếu đơn vị: {output}";
+                var exportResult = exportDialog.Result;
+                if (exportResult.Format == BalanceExportFormat.Excel)
+                {
+                    var unitIssues = await inventoryService.GetGeneratedUnitIssuesAsync(balance.Id);
+                    var output = SaveExcelFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.xlsx");
+                    if (output is null)
+                    {
+                        return;
+                    }
+
+                    await RunBusyAsync(
+                        "Đang xuất Excel phiếu cân đối...",
+                        () => _inventoryExcelExportService.ExportBalance(
+                            output,
+                            balance,
+                            itemsById,
+                            units,
+                            snapshots,
+                            unitIssues,
+                            omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                            selectedLineIds: exportResult.SelectedLineIds));
+                    StatusMessage =
+                        $"Đã xuất Excel phiếu cân đối và {unitIssues.Count} phiếu đơn vị: {output}";
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(BalanceWordTemplatePath) || !File.Exists(BalanceWordTemplatePath))
+                    {
+                        throw new InvalidOperationException(
+                            $"Không tìm thấy {WordTemplateSettingsService.BalanceTemplateFileName}.\n" +
+                            "Vào Cài đặt → Template Word để chọn thư mục hoặc tạo file mẫu.");
+                    }
+
+                    var balanceOutput = SaveWordFile($"SoCanDoi_{SafeFileComponent(balance.IssueNumber)}.docx");
+                    if (balanceOutput is null)
+                    {
+                        return;
+                    }
+
+                    await RunBusyAsync(
+                        "Đang xuất Word phiếu cân đối...",
+                        () => wordExportService.ExportBalanceOverview(
+                            BalanceWordTemplatePath,
+                            balanceOutput,
+                            balance,
+                            itemsById,
+                            units,
+                            snapshots,
+                            omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                            selectedLineIds: exportResult.SelectedLineIds));
+                    StatusMessage = $"Đã xuất phiếu cân đối: {balanceOutput}";
+                }
             }
             else
             {
@@ -1742,7 +1840,8 @@ public partial class MainViewModel(
                                 itemsById,
                                 units,
                                 snapshots,
-                                unitIssues);
+                                unitIssues,
+                                OmitZeroStockAtIssueDate);
                         }
                     });
                 StatusMessage = $"Đã xuất {selected.Count} phiếu cân đối (Excel) vào thư mục: {folder}";

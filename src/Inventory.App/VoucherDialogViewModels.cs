@@ -590,6 +590,9 @@ public sealed partial class IssueDialogViewModel : ObservableObject
     public Task<decimal> ResolveAvailabilityAsync(string itemCode, DateTime atDate) =>
         _availabilityResolver(itemCode, atDate);
 
+    public Task<IReadOnlyDictionary<string, decimal>> ResolveAvailabilityBatchAsync(IReadOnlyList<string> itemCodes, DateTime atDate) =>
+        _availabilityBatchResolver(itemCodes, atDate);
+
     [RelayCommand]
     private void AddLine()
     {
@@ -1293,6 +1296,7 @@ public partial class IssueSelectableItemViewModel : ObservableObject
 
     [ObservableProperty] private bool isSelected;
     [ObservableProperty] private string note = string.Empty;
+    [ObservableProperty] private decimal availableStock;
 
     public IssueSelectableItemViewModel(Item item)
     {

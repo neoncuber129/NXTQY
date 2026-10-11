@@ -177,7 +177,8 @@
                                 Style="{StaticResource ExportButtonStyle}"
                                 Click="ExportSelectedUnitIssues_OnClick"
                                 ToolTip="Chọn xuất gộp một file hoặc tách từng file."/>
-                        <Button Content="Xuất sổ cân đối" Padding="10,4" Click="ExportOverview_OnClick" Style="{StaticResource ExportButtonStyle}"/>
+                        <Button Content="Xuất sổ cân đối" Padding="10,4" Click="ExportOverview_OnClick" Style="{StaticResource ExportButtonStyle}"
+                                ToolTip="Mở hộp thoại chọn mặt hàng để xuất sổ cân đối (Word hoặc Excel)."/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -272,7 +273,7 @@
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                         <Button Content="Xuất sổ cân đối" Padding="10,4" Click="ExportOverview_OnClick"
                                 Style="{StaticResource ExportButtonStyle}"
-                                ToolTip="Xuất sổ cân đối theo template Word phiếu cân đối."/>
+                                ToolTip="Mở hộp thoại chọn mặt hàng để xuất sổ cân đối (Word hoặc Excel)."/>
                     </StackPanel>
                 </Grid>
             </TabItem>

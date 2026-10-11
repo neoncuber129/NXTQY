@@ -5,8 +5,8 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Title="Chọn mặt hàng"
-        Height="620"
-        Width="980">
+        Height="650"
+        Width="1050">
     <Window.Resources>
         <Style x:Key="WrappedCell" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -20,26 +20,53 @@
         <Style x:Key="CenterWrappedCell" TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}">
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
+        <Style x:Key="CenterBoldCell" TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
     </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock DockPanel.Dock="Left"
-                       Text="Tìm mặt hàng:"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0"/>
-            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     Height="28"
-                     VerticalContentAlignment="Center"
-                     ToolTip="Tìm theo mã, tên mặt hàng, danh mục, đơn vị hoặc ghi chú"/>
-        </DockPanel>
+        <!-- Banner cảnh báo ngày tính tồn -->
+        <Border Grid.Row="0" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="10,7" Margin="0,0,0,8">
+            <DockPanel>
+                <TextBlock Text="⚠️" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding DateNoticeText}" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
 
-        <TabControl Grid.Row="1">
+        <!-- Thanh tìm kiếm và nút ẩn tồn = 0 -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <DockPanel Grid.Column="0" Margin="0,0,16,0">
+                <TextBlock DockPanel.Dock="Left"
+                           Text="Tìm mặt hàng:"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Height="28"
+                         VerticalContentAlignment="Center"
+                         ToolTip="Tìm theo mã, tên mặt hàng, danh mục, đơn vị hoặc ghi chú"/>
+            </DockPanel>
+            <CheckBox Grid.Column="1"
+                      Content="Ẩn mặt hàng tồn ngày lập phiếu = 0"
+                      IsChecked="{Binding HideZeroStock, Mode=TwoWay}"
+                      FontWeight="SemiBold"
+                      Foreground="#1E293B"
+                      VerticalAlignment="Center"
+                      ToolTip="Ẩn các mặt hàng có tồn tính đến ngày lập phiếu nhỏ hơn hoặc bằng 0 (Mặc định bật)"/>
+        </Grid>
+
+        <TabControl Grid.Row="2">
             <TabItem Header="Danh sách đầy đủ">
                 <Grid Margin="0,8,0,0">
                     <Grid.RowDefinitions>
@@ -71,19 +98,30 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="140" MinWidth="90"
+                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="120" MinWidth="80"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource WrappedCell}"/>
-                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="160" MinWidth="100"
+                            <DataGridTextColumn Header="Tên mặt hàng" Binding="{Binding ItemName, Mode=OneWay}" Width="*" MinWidth="160"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource WrappedCell}"/>
-                            <DataGridTextColumn Header="Loại" Binding="{Binding UsageType, Mode=OneWay}" Width="100" MinWidth="70"
+                            <DataGridTextColumn Header="ĐVT" Binding="{Binding Unit, Mode=OneWay}" Width="65" MinWidth="50"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="120" MinWidth="80"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                            <DataGridTextColumn Header="Tồn ngày lập phiếu"
+                                                Binding="{Binding AvailableStock, Mode=OneWay, StringFormat=N0}"
+                                                Width="130" MinWidth="110"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterBoldCell}"/>
+                            <DataGridTextColumn Header="Loại" Binding="{Binding UsageType, Mode=OneWay}" Width="90" MinWidth="60"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource CenterWrappedCell}"/>
                             <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}"
                                                 IsReadOnly="True"
-                                                Width="100"/>
-                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="140"
+                                                Width="95"/>
+                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="120"
                                                 ElementStyle="{StaticResource WrappedCell}"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -102,9 +140,6 @@
                         <Button Content="Chọn tất cả phiếu" Click="SelectAllReceipts_Click" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
                         <Button Content="Bỏ chọn phiếu" Click="ClearAllReceipts_Click" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}"/>
                         <Button Content="Tải mặt hàng từ phiếu đã chọn" Click="LoadFromReceipts_Click" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
-                        <CheckBox Content="Bỏ mặt hàng tồn = 0"
-                                  IsChecked="{Binding FilterOutZeroStock, Mode=TwoWay}"
-                                  VerticalAlignment="Center"/>
                     </StackPanel>
                     <DataGrid Grid.Row="1"
                               ItemsSource="{Binding Receipts}"
@@ -152,11 +187,22 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="160" MinWidth="100"
+                            <DataGridTextColumn Header="Mã hàng" Binding="{Binding ItemCode, Mode=OneWay}" Width="120" MinWidth="80"
                                                 IsReadOnly="True"
                                                 ElementStyle="{StaticResource WrappedCell}"/>
-                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="160" MinWidth="100" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Tên mặt hàng" Binding="{Binding ItemName, Mode=OneWay}" Width="*" MinWidth="160"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource WrappedCell}"/>
+                            <DataGridTextColumn Header="ĐVT" Binding="{Binding Unit, Mode=OneWay}" Width="65" MinWidth="50"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterAlignedCell}"/>
+                            <DataGridTextColumn Header="Danh mục" Binding="{Binding Category, Mode=OneWay}" Width="120" MinWidth="80" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Tồn ngày lập phiếu"
+                                                Binding="{Binding AvailableStock, Mode=OneWay, StringFormat=N0}"
+                                                Width="130" MinWidth="110"
+                                                IsReadOnly="True"
+                                                ElementStyle="{StaticResource CenterBoldCell}"/>
+                            <DataGridTextColumn Header="Đơn giá" Binding="{Binding UnitPrice, Mode=OneWay, StringFormat=N0}" Width="95" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Từ phiếu" Binding="{Binding SourceReceiptNumber, Mode=OneWay}" Width="120" IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -164,7 +210,7 @@
             </TabItem>
         </TabControl>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Thêm mặt hàng đã chọn" Width="170" Margin="0,0,8,0" Click="AddSelected_Click" Style="{StaticResource SuccessButtonStyle}"/>
             <Button Content="Đóng" Width="90" IsCancel="True" Click="Close_Click" Style="{StaticResource SecondaryButtonStyle}"/>
         </StackPanel>

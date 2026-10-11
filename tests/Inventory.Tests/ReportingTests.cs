@@ -150,6 +150,145 @@ public sealed class ReportingTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Balance_word_export_omits_zero_stock_items_when_flag_enabled()
+    {
+        using var files = new TemporaryFiles();
+        var template = files.PathFor("balance-template-omit.docx");
+        var exported = files.PathFor("balance-output-omit.docx");
+        CreateBalanceTemplate(template);
+
+        var units = new[]
+        {
+            new SubordinateUnit { Id = 1, UnitCode = "A", Name = "Đơn vị A", SortOrder = 1 },
+            new SubordinateUnit { Id = 2, UnitCode = "B", Name = "Đơn vị B", SortOrder = 2 }
+        };
+        var balance = new Issue
+        {
+            IssueNumber = "CĐ-001",
+            IssueDate = new DateTime(2026, 7, 21),
+            TotalAmount = 50_000,
+            Lines =
+            [
+                new IssueLine
+                {
+                    Id = 1,
+                    ItemId = 1,
+                    Quantity = 5,
+                    UnitPrice = 10_000,
+                    Amount = 50_000,
+                    Allocations =
+                    [
+                        new IssueLineAllocation { SubordinateUnitId = 1, Quantity = 2 },
+                        new IssueLineAllocation { SubordinateUnitId = 2, Quantity = 3 }
+                    ]
+                },
+                new IssueLine
+                {
+                    Id = 2,
+                    ItemId = 2,
+                    Quantity = 0,
+                    UnitPrice = 20_000,
+                    Amount = 0
+                }
+            ]
+        };
+
+        new WordExportService().ExportBalanceOverview(
+            template,
+            exported,
+            balance,
+            new Dictionary<int, Item>
+            {
+                [1] = new() { Id = 1, ItemCode = "MH1", ItemName = "Hàng 1", Unit = "Hộp" },
+                [2] = new() { Id = 2, ItemCode = "MH2", ItemName = "Hàng 2", Unit = "Hộp" }
+            },
+            units,
+            new Dictionary<int, BalanceStockSnapshot>
+            {
+                [1] = new(10, 5),
+                [2] = new(0, 0)
+            },
+            omitZeroStockAtIssueDate: true);
+
+        using var document = WordprocessingDocument.Open(exported, false);
+        Assert.Empty(new OpenXmlValidator().Validate(document));
+        var body = document.MainDocumentPart?.Document?.Body
+            ?? throw new InvalidOperationException("Missing document body.");
+        var table = Assert.Single(body.Elements<Table>());
+        var rows = table.Elements<TableRow>().ToList();
+        Assert.Equal(3, rows.Count);
+        Assert.Contains("MH1", rows[1].InnerText);
+        Assert.DoesNotContain("MH2", rows[1].InnerText);
+    }
+
+    [Fact]
+    public void Balance_word_export_filters_by_selected_line_ids()
+    {
+        using var files = new TemporaryFiles();
+        var template = files.PathFor("balance-template-lines.docx");
+        var exported = files.PathFor("balance-output-lines.docx");
+        CreateBalanceTemplate(template);
+
+        var units = new[]
+        {
+            new SubordinateUnit { Id = 1, UnitCode = "A", Name = "Đơn vị A", SortOrder = 1 }
+        };
+        var balance = new Issue
+        {
+            IssueNumber = "CĐ-LINES",
+            IssueDate = new DateTime(2026, 7, 21),
+            TotalAmount = 70_000,
+            Lines =
+            [
+                new IssueLine
+                {
+                    Id = 10,
+                    ItemId = 1,
+                    Quantity = 5,
+                    UnitPrice = 10_000,
+                    Amount = 50_000,
+                    Allocations = [new IssueLineAllocation { SubordinateUnitId = 1, Quantity = 5 }]
+                },
+                new IssueLine
+                {
+                    Id = 20,
+                    ItemId = 2,
+                    Quantity = 2,
+                    UnitPrice = 10_000,
+                    Amount = 20_000,
+                    Allocations = [new IssueLineAllocation { SubordinateUnitId = 1, Quantity = 2 }]
+                }
+            ]
+        };
+
+        new WordExportService().ExportBalanceOverview(
+            template,
+            exported,
+            balance,
+            new Dictionary<int, Item>
+            {
+                [1] = new() { Id = 1, ItemCode = "MH1", ItemName = "Hàng 1", Unit = "Hộp" },
+                [2] = new() { Id = 2, ItemCode = "MH2", ItemName = "Hàng 2", Unit = "Hộp" }
+            },
+            units,
+            new Dictionary<int, BalanceStockSnapshot>
+            {
+                [1] = new(10, 5),
+                [2] = new(10, 8)
+            },
+            selectedLineIds: new HashSet<int> { 10 });
+
+        using var document = WordprocessingDocument.Open(exported, false);
+        var body = document.MainDocumentPart?.Document?.Body
+            ?? throw new InvalidOperationException("Missing document body.");
+        var table = Assert.Single(body.Elements<Table>());
+        var rows = table.Elements<TableRow>().ToList();
+        Assert.Equal(3, rows.Count);
+        Assert.Contains("MH1", rows[1].InnerText);
+        Assert.DoesNotContain("MH2", rows[1].InnerText);
+    }
+
+    [Fact]
     public void Unit_issue_report_excel_contains_detail_group_and_item_sheets()
     {
         using var files = new TemporaryFiles();
@@ -261,6 +400,122 @@ public sealed class ReportingTests(ITestOutputHelper output)
         Assert.Contains("PX-A", workbook.Worksheet("PX A").Cell(1, 1).GetString());
         Assert.Equal("MH1", workbook.Worksheet("PX A").Cell(6, 2).GetString());
         Assert.Equal(3m, workbook.Worksheet("PX B").Cell(6, 6).GetValue<decimal>());
+    }
+
+    [Fact]
+    public void Balance_excel_export_omits_zero_stock_items_when_flag_enabled()
+    {
+        using var files = new TemporaryFiles();
+        var path = files.PathFor("balance-omit.xlsx");
+        var units = new[]
+        {
+            new SubordinateUnit { Id = 1, UnitCode = "A", Name = "Đơn vị A", SortOrder = 1 }
+        };
+        var balance = new Issue
+        {
+            IssueNumber = "CĐ-002",
+            IssueDate = new DateTime(2026, 7, 21),
+            TotalAmount = 50_000,
+            Lines =
+            [
+                new IssueLine
+                {
+                    Id = 1,
+                    ItemId = 1,
+                    Quantity = 5,
+                    UnitPrice = 10_000,
+                    Amount = 50_000
+                },
+                new IssueLine
+                {
+                    Id = 2,
+                    ItemId = 2,
+                    Quantity = 0,
+                    UnitPrice = 20_000,
+                    Amount = 0
+                }
+            ]
+        };
+
+        new InventoryExcelExportService().ExportBalance(
+            path,
+            balance,
+            new Dictionary<int, Item>
+            {
+                [1] = new() { Id = 1, ItemCode = "MH1", ItemName = "Hàng 1" },
+                [2] = new() { Id = 2, ItemCode = "MH2", ItemName = "Hàng 2" }
+            },
+            units,
+            new Dictionary<int, BalanceStockSnapshot>
+            {
+                [1] = new(10, 5),
+                [2] = new(0, 0)
+            },
+            [],
+            omitZeroStockAtIssueDate: true);
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet("Sổ cân đối");
+        Assert.Equal("MH1", sheet.Cell(5, 2).GetString());
+        Assert.True(sheet.Cell(6, 2).IsEmpty());
+    }
+
+    [Fact]
+    public void Balance_excel_export_filters_by_selected_line_ids()
+    {
+        using var files = new TemporaryFiles();
+        var path = files.PathFor("balance-lines.xlsx");
+        var units = new[]
+        {
+            new SubordinateUnit { Id = 1, UnitCode = "A", Name = "Đơn vị A", SortOrder = 1 }
+        };
+        var balance = new Issue
+        {
+            IssueNumber = "CĐ-EXCEL-LINES",
+            IssueDate = new DateTime(2026, 7, 21),
+            TotalAmount = 70_000,
+            Lines =
+            [
+                new IssueLine
+                {
+                    Id = 10,
+                    ItemId = 1,
+                    Quantity = 5,
+                    UnitPrice = 10_000,
+                    Amount = 50_000
+                },
+                new IssueLine
+                {
+                    Id = 20,
+                    ItemId = 2,
+                    Quantity = 2,
+                    UnitPrice = 10_000,
+                    Amount = 20_000
+                }
+            ]
+        };
+
+        new InventoryExcelExportService().ExportBalance(
+            path,
+            balance,
+            new Dictionary<int, Item>
+            {
+                [1] = new() { Id = 1, ItemCode = "MH1", ItemName = "Hàng 1" },
+                [2] = new() { Id = 2, ItemCode = "MH2", ItemName = "Hàng 2" }
+            },
+            units,
+            new Dictionary<int, BalanceStockSnapshot>
+            {
+                [1] = new(10, 5),
+                [2] = new(10, 8)
+            },
+            [],
+            selectedLineIds: new HashSet<int> { 10 });
+
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheet("Sổ cân đối");
+        Assert.Equal("MH1", sheet.Cell(5, 2).GetString());
+        Assert.True(sheet.Cell(6, 2).IsEmpty());
     }
 
     [Fact]

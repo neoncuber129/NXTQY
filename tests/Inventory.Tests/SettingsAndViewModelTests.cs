@@ -474,6 +474,63 @@ public sealed class SettingsAndViewModelTests
         Assert.False(viewModel.HasUnsavedManagedUnitIssues);
     }
 
+    [Fact]
+    public async Task ItemPickerViewModel_hides_zero_stock_by_default_and_loads_availability()
+    {
+        var item1 = new Item { Id = 1, ItemCode = "VT01", ItemName = "Vật tư 1", Category = "A", Unit = "Cái", UnitPrice = 1000m, UsageType = "Tiêu hao" };
+        var item2 = new Item { Id = 2, ItemCode = "VT02", ItemName = "Vật tư 2", Category = "A", Unit = "Cái", UnitPrice = 2000m, UsageType = "Tiêu hao" };
+        var item3 = new Item { Id = 3, ItemCode = "VT03", ItemName = "Vật tư 3", Category = "B", Unit = "Hộp", UnitPrice = 3000m, UsageType = "Tiêu hao" };
+
+        var selectables = new List<IssueSelectableItemViewModel>
+        {
+            new(item1),
+            new(item2),
+            new(item3)
+        };
+
+        var itemsDict = new Dictionary<int, Item>
+        {
+            [1] = item1,
+            [2] = item2,
+            [3] = item3
+        };
+
+        var issueDate = new DateTime(2026, 10, 15);
+        var stockMap = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["VT01"] = 10m,
+            ["VT02"] = 0m,
+            ["VT03"] = -2m
+        };
+
+        var vm = new ItemPickerViewModel(
+            selectables,
+            [],
+            itemsDict,
+            [],
+            issueDate,
+            receiptId => Task.FromResult<Receipt?>(null),
+            (code, date) => Task.FromResult(stockMap.GetValueOrDefault(code, 0m)),
+            (codes, date) => Task.FromResult<IReadOnlyDictionary<string, decimal>>(stockMap));
+
+        Assert.True(vm.HideZeroStock);
+        Assert.Contains("15/10/2026", vm.DateNoticeText);
+
+        await vm.LoadAvailabilityAsync();
+
+        Assert.Equal(10m, selectables[0].AvailableStock);
+        Assert.Equal(0m, selectables[1].AvailableStock);
+        Assert.Equal(-2m, selectables[2].AvailableStock);
+
+        var visibleWhenHidden = vm.FullItemsView.Cast<IssueSelectableItemViewModel>().ToList();
+        Assert.Single(visibleWhenHidden);
+        Assert.Equal("VT01", visibleWhenHidden[0].ItemCode);
+
+        vm.HideZeroStock = false;
+        var visibleWhenShown = vm.FullItemsView.Cast<IssueSelectableItemViewModel>().ToList();
+        Assert.Equal(3, visibleWhenShown.Count);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

@@ -11,6 +11,7 @@ public static class UiPreferenceService
         public int BalanceUnitHeaderPreferenceVersion { get; set; }
         public double UiScale { get; set; } = 1d;
         public bool IsModeB { get; set; }
+        public bool OmitZeroStockAtIssueDate { get; set; } = true;
     }
 
     private static readonly object SyncRoot = new();
@@ -100,6 +101,33 @@ public static class UiPreferenceService
             var path = ResolveSettingsPath(settingsPath);
             var settings = LoadSettings(path);
             settings.IsModeB = value;
+            SaveSettings(path, settings);
+        }
+    }
+
+    public static bool LoadOmitZeroStockAtIssueDate(string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            try
+            {
+                var path = ResolveSettingsPath(settingsPath);
+                return LoadSettings(path).OmitZeroStockAtIssueDate;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+
+    public static void SaveOmitZeroStockAtIssueDate(bool value, string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            var path = ResolveSettingsPath(settingsPath);
+            var settings = LoadSettings(path);
+            settings.OmitZeroStockAtIssueDate = value;
             SaveSettings(path, settings);
         }
     }

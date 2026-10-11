@@ -484,7 +484,10 @@ public partial class IssueDialogWindow : Window
             _viewModel.Lines.Select(x => x.ItemCode),
             _viewModel.IssueDate,
             async receiptId => await _viewModel.ResolveReceiptAsync(receiptId),
-            async (code, date) => await _viewModel.ResolveAvailabilityAsync(code, date));
+            async (code, date) => await _viewModel.ResolveAvailabilityAsync(code, date),
+            async (codes, date) => await _viewModel.ResolveAvailabilityBatchAsync(codes, date));
+
+        await pickerVm.LoadAvailabilityAsync();
 
         var picker = new ItemPickerWindow(pickerVm) { Owner = this };
         if (picker.ShowDialog() != true || picker.SelectedItems.Count == 0)

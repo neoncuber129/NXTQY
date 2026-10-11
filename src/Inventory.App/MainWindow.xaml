@@ -545,11 +545,9 @@
                         <Button Content="Sửa" Command="{Binding OpenEditIssueDialogCommand}" Margin="0,0,8,0" Style="{StaticResource WarningButtonStyle}"/>
                         <Button Content="Xóa" Command="{Binding DeleteIssueCommand}" Margin="0,0,8,0" Style="{StaticResource DangerButtonStyle}"/>
                         <Button Content="Làm mới" Command="{Binding RefreshIssuesCommand}" Margin="0,0,8,0" Style="{StaticResource PrimaryButtonStyle}"/>
-                        <Button Content="Xuất Word" Command="{Binding ExportSelectedIssueWordCommand}" Margin="0,0,8,0"
+                        <Button Content="Xuất sổ cân đối" Command="{Binding ExportSelectedIssueWordCommand}" Margin="0,0,8,0"
                                 Style="{StaticResource ExportButtonStyle}"
-                                ToolTip="Xuất phiếu cân đối dạng Word (sổ cân đối)."/>
-                        <Button Content="Xuất Excel" Command="{Binding ExportSelectedIssueExcelCommand}"
-                                Style="{StaticResource ExportButtonStyle}"/>
+                                ToolTip="Mở hộp thoại chọn mặt hàng để xuất sổ cân đối (Word hoặc Excel)."/>
                     </StackPanel>
                     <DataGrid x:Name="IssuesGrid"
                               Grid.Row="1"

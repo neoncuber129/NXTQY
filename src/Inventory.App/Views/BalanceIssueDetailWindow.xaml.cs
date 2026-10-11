@@ -451,39 +451,96 @@ public partial class BalanceIssueDetailWindow : Window
 
     private async void ExportOverview_OnClick(object sender, RoutedEventArgs e)
     {
-        if (!EnsureBalanceTemplate())
-        {
-            return;
-        }
+        await ExportOverviewCoreAsync(BalanceExportFormat.Word);
+    }
 
+    private async void ExportOverviewExcel_OnClick(object sender, RoutedEventArgs e)
+    {
+        await ExportOverviewCoreAsync(BalanceExportFormat.Excel);
+    }
+
+    private async Task ExportOverviewCoreAsync(BalanceExportFormat preferredFormat)
+    {
         try
         {
-            var dialog = new SaveFileDialog
+            var stockSnapshots = await _inventoryService.GetBalanceStockSnapshotsAsync(
+                ViewModel.Balance.Id);
+
+            var exportDialog = new BalanceExportDialogWindow(
+                ViewModel.Balance,
+                _itemsById,
+                stockSnapshots)
             {
-                Filter = "Word (*.docx)|*.docx",
-                FileName = $"SoCanDoi_{FileNameSanitizer.Sanitize(ViewModel.Balance.IssueNumber)}.docx"
+                Owner = this
             };
-            if (dialog.ShowDialog(this) != true)
+
+            if (exportDialog.ShowDialog() != true || exportDialog.Result is null)
             {
                 return;
             }
 
-            var stockSnapshots = await _inventoryService.GetBalanceStockSnapshotsAsync(
-                ViewModel.Balance.Id);
-            await RunBusyAsync(
-                "Đang xuất Word sổ cân đối...",
-                () => _wordExport.ExportBalanceOverview(
-                    _balanceTemplatePath,
-                    dialog.FileName,
-                    ViewModel.Balance,
-                    _itemsById,
-                    ViewModel.OverviewUnits,
-                    stockSnapshots));
-            Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true });
+            var exportResult = exportDialog.Result;
+            if (exportResult.Format == BalanceExportFormat.Word)
+            {
+                if (!EnsureBalanceTemplate())
+                {
+                    return;
+                }
+
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "Word (*.docx)|*.docx",
+                    FileName = $"SoCanDoi_{FileNameSanitizer.Sanitize(ViewModel.Balance.IssueNumber)}.docx"
+                };
+                if (dialog.ShowDialog(this) != true)
+                {
+                    return;
+                }
+
+                await RunBusyAsync(
+                    "Đang xuất Word sổ cân đối...",
+                    () => _wordExport.ExportBalanceOverview(
+                        _balanceTemplatePath,
+                        dialog.FileName,
+                        ViewModel.Balance,
+                        _itemsById,
+                        ViewModel.OverviewUnits,
+                        stockSnapshots,
+                        omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                        selectedLineIds: exportResult.SelectedLineIds));
+                Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true });
+            }
+            else
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "Excel (*.xlsx)|*.xlsx",
+                    FileName = $"SoCanDoi_{FileNameSanitizer.Sanitize(ViewModel.Balance.IssueNumber)}.xlsx"
+                };
+                if (dialog.ShowDialog(this) != true)
+                {
+                    return;
+                }
+
+                var unitIssues = await _inventoryService.GetGeneratedUnitIssuesAsync(
+                    ViewModel.Balance.Id);
+                await RunBusyAsync(
+                    "Đang xuất Excel sổ cân đối...",
+                    () => new InventoryExcelExportService().ExportBalance(
+                        dialog.FileName,
+                        ViewModel.Balance,
+                        _itemsById,
+                        ViewModel.OverviewUnits,
+                        stockSnapshots,
+                        unitIssues,
+                        omitZeroStockAtIssueDate: exportResult.OmitZeroStock,
+                        selectedLineIds: exportResult.SelectedLineIds));
+                Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true });
+            }
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Không xuất được Word", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, ex.Message, "Không xuất được sổ cân đối", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -529,6 +586,13 @@ public sealed partial class BalanceIssueDetailViewModel : ObservableObject
 
     public bool HasDirtyRows => UnitIssueRows.Any(x => x.IsDirty);
     public bool HasUnsavedChanges => HasDirtyRows;
+
+    [ObservableProperty] private bool omitZeroStockAtIssueDate = UiPreferenceService.LoadOmitZeroStockAtIssueDate();
+
+    partial void OnOmitZeroStockAtIssueDateChanged(bool value)
+    {
+        UiPreferenceService.SaveOmitZeroStockAtIssueDate(value);
+    }
 
     public BalanceIssueDetailViewModel(
         Issue balance,

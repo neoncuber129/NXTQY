@@ -74,9 +74,23 @@ public sealed class InventoryExcelExportService
         IReadOnlyDictionary<int, Item> itemsById,
         IReadOnlyList<SubordinateUnit> subordinateUnits,
         IReadOnlyDictionary<int, BalanceStockSnapshot> stockSnapshots,
-        IReadOnlyList<Issue> unitIssues)
+        IReadOnlyList<Issue> unitIssues,
+        bool omitZeroStockAtIssueDate = false,
+        IReadOnlySet<int>? selectedLineIds = null)
     {
         var units = subordinateUnits.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToList();
+        var effectiveLines = balance.Lines.OrderBy(x => x.Id).AsEnumerable();
+        if (selectedLineIds is not null)
+        {
+            effectiveLines = effectiveLines.Where(line => selectedLineIds.Contains(line.Id));
+        }
+        else if (omitZeroStockAtIssueDate)
+        {
+            effectiveLines = effectiveLines.Where(line =>
+                stockSnapshots.TryGetValue(line.ItemId, out var snapshot) && snapshot.TotalQuantity > 0);
+        }
+        var linesList = effectiveLines.ToList();
+
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Sổ cân đối");
 
@@ -91,12 +105,12 @@ public sealed class InventoryExcelExportService
         sheet.Cell(1, 1).Value = $"SỔ CÂN ĐỐI {balance.IssueNumber}";
         sheet.Range(1, 1, 1, headers.Count).Merge().Style.Font.SetBold().Font.SetFontSize(14);
         WriteLabelValue(sheet, 2, 1, "Ngày lập phiếu", balance.IssueDate);
-        WriteLabelValue(sheet, 2, 4, "Tổng tiền", balance.TotalAmount);
+        WriteLabelValue(sheet, 2, 4, "Tổng tiền", linesList.Sum(x => x.Amount));
         WriteHeaders(sheet, 4, headers);
 
         var rowIndex = 5;
         var number = 1;
-        foreach (var line in balance.Lines.OrderBy(x => x.Id))
+        foreach (var line in linesList)
         {
             itemsById.TryGetValue(line.ItemId, out var item);
             stockSnapshots.TryGetValue(line.ItemId, out var snapshot);

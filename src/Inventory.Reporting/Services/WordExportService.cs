@@ -168,15 +168,30 @@ public sealed class WordExportService
         Issue balance,
         IReadOnlyDictionary<int, Item>? itemsById,
         IReadOnlyList<SubordinateUnit> subordinateUnits,
-        IReadOnlyDictionary<int, BalanceStockSnapshot>? stockSnapshots = null)
+        IReadOnlyDictionary<int, BalanceStockSnapshot>? stockSnapshots = null,
+        bool omitZeroStockAtIssueDate = false,
+        IReadOnlySet<int>? selectedLineIds = null)
     {
         var units = subordinateUnits
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Name)
             .ToList();
 
+        var effectiveLines = balance.Lines.OrderBy(x => x.Id).AsEnumerable();
+        if (selectedLineIds is not null)
+        {
+            effectiveLines = effectiveLines.Where(line => selectedLineIds.Contains(line.Id));
+        }
+        else if (omitZeroStockAtIssueDate && stockSnapshots is not null)
+        {
+            effectiveLines = effectiveLines.Where(line =>
+                stockSnapshots.TryGetValue(line.ItemId, out var snap) && snap.TotalQuantity > 0);
+        }
+        var linesList = effectiveLines.ToList();
+
         File.Copy(templatePath, outputPath, overwrite: true);
-        var amountInWords = ResolveAmountInWords(balance.TotalAmount);
+        var totalAmount = linesList.Sum(x => x.Amount);
+        var amountInWords = ResolveAmountInWords(totalAmount);
         var tokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["${SoPhieu}"] = balance.IssueNumber,
@@ -186,11 +201,11 @@ public sealed class WordExportService
             ["${DonViNguoiNhan}"] = "Sổ cân đối các đơn vị",
             ["${NguoiGiao}"] = balance.DeliveredBy,
             ["${LyDoXuat}"] = string.IsNullOrWhiteSpace(balance.Reason) ? "Sổ cân đối" : balance.Reason,
-            ["${TongTien}"] = FormatNumber(balance.TotalAmount),
+            ["${TongTien}"] = FormatNumber(totalAmount),
             ["${TongTienBangChu}"] = amountInWords,
             ["${SoTienBangChu}"] = amountInWords,
-            ["${SoKhoan}"] = balance.Lines.Count.ToString(),
-            ["${sokhoanchu}"] = FormatCountInWords(balance.Lines.Count)
+            ["${SoKhoan}"] = linesList.Count.ToString(),
+            ["${sokhoanchu}"] = FormatCountInWords(linesList.Count)
         };
 
         using var document = WordprocessingDocument.Open(outputPath, true);
@@ -221,7 +236,7 @@ public sealed class WordExportService
             }
 
             var detailRows = BuildBalanceOverviewDetailRows(
-                balance,
+                linesList,
                 itemsById,
                 units,
                 stockSnapshots);
@@ -232,7 +247,7 @@ public sealed class WordExportService
         }
 
         // Tương thích template cũ chưa có placeholder đơn vị.
-        ReplaceDetailTableWithBalanceOverview(body, balance, itemsById, units);
+        ReplaceDetailTableWithBalanceOverview(body, linesList, itemsById, units);
         ReplaceTokensInDocumentParts(mainPart, body, tokens);
         mainPart.Document!.Save();
     }
@@ -396,12 +411,11 @@ public sealed class WordExportService
         string.Concat(element.Descendants<Text>().Select(x => x.Text));
 
     private static IReadOnlyList<Dictionary<string, string>> BuildBalanceOverviewDetailRows(
-        Issue balance,
+        IReadOnlyList<IssueLine> lines,
         IReadOnlyDictionary<int, Item>? itemsById,
         IReadOnlyList<SubordinateUnit> units,
         IReadOnlyDictionary<int, BalanceStockSnapshot>? stockSnapshots)
     {
-        var lines = balance.Lines.OrderBy(x => x.Id).ToList();
         var rows = new List<Dictionary<string, string>>(lines.Count);
         for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
         {
@@ -451,7 +465,7 @@ public sealed class WordExportService
 
     private static void ReplaceDetailTableWithBalanceOverview(
         Body body,
-        Issue balance,
+        IReadOnlyList<IssueLine> lines,
         IReadOnlyDictionary<int, Item>? itemsById,
         IReadOnlyList<SubordinateUnit> units)
     {
@@ -479,7 +493,6 @@ public sealed class WordExportService
         headers.AddRange(units.Select(u => u.Name));
         table.AppendChild(CreatePlainHeaderRow(headers));
 
-        var lines = balance.Lines.OrderBy(x => x.Id).ToList();
         for (var i = 0; i < lines.Count; i++)
         {
             var line = lines[i];

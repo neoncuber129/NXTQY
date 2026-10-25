@@ -10,7 +10,7 @@ public partial class AboutWindow : Window
         InitializeComponent();
         var version = Assembly.GetEntryAssembly()?.GetName().Version;
         VersionText = version is null
-            ? "Phiên bản 1.1"
+            ? "Phiên bản 1.2"
             : $"Phiên bản {version.Major}.{version.Minor}";
         DataContext = this;
     }

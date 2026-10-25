@@ -5,7 +5,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Title="Chuyển kỳ tồn kho"
-        Height="560"
+        Height="620"
         Width="640">
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -88,6 +88,14 @@
 
                 <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
                            Foreground="{Binding StatusBrush}"/>
+
+                <CheckBox Content="{Binding AllowUpdateOpeningText}"
+                          IsChecked="{Binding AllowUpdateOpeningWithExistingActivity}"
+                          Visibility="{Binding HasTargetActivity, Converter={StaticResource BooleanToVisibilityConverter}}"
+                          FontWeight="SemiBold"
+                          Foreground="#C0392B"
+                          ToolTip="Cho phép cập nhật lại số tồn đầu năm đích theo tồn cuối năm nguồn, giữ nguyên các phiếu nhập/xuất đã lập và tự động tính lại sổ cái chi tiết."
+                          Margin="0,0,0,8"/>
 
                 <CheckBox Content="Không chuyển mặt hàng tồn cuối bằng 0 sang Dashboard năm sau (mặc định)"
                           IsChecked="{Binding ExcludeZeroClosingStock}"

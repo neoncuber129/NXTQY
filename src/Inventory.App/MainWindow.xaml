@@ -10,7 +10,7 @@
         mc:Ignorable="d"
         WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded"
-        Title="Quản lý nhập xuất tồn - v1.1" Height="860" Width="1400">
+        Title="Quản lý nhập xuất tồn - v1.2" Height="860" Width="1400">
     <Window.Resources>
         <Style x:Key="RightAlignedCell" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Right"/>
@@ -92,7 +92,7 @@
             <Border DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center"
                     Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="0,0,4,0"
                     ToolTip="Phiên bản phần mềm">
-                <TextBlock Text="v1.1" Foreground="#1E40AF" FontSize="11" FontWeight="Bold"/>
+                <TextBlock Text="v1.2" Foreground="#1E40AF" FontSize="11" FontWeight="Bold"/>
             </Border>
         </DockPanel>
 

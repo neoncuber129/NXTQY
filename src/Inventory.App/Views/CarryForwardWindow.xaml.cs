@@ -56,12 +56,20 @@ public partial class CarryForwardWindow : Window
 
 public sealed class CarryForwardViewModel : INotifyPropertyChanged
 {
+    private readonly YearStockActivitySummary _fromYearActivity;
+    private readonly YearStockActivitySummary _toYearActivity;
     private bool _excludeZeroClosingStock = UiPreferenceService.LoadExcludeZeroClosingStockOnCarryForward();
+    private bool _allowUpdateOpeningWithExistingActivity;
     private bool _createBackup = true;
     private string _backupFilePath;
+    private string _statusMessage = string.Empty;
+    private Brush _statusBrush = Brushes.Black;
+    private bool _canExecute;
 
     public CarryForwardViewModel(int workingYear, YearStockActivitySummary fromYear, YearStockActivitySummary toYear)
     {
+        _fromYearActivity = fromYear;
+        _toYearActivity = toYear;
         WorkingYear = workingYear;
         FromYear = fromYear.Year;
         ToYear = toYear.Year;
@@ -71,7 +79,7 @@ public sealed class CarryForwardViewModel : INotifyPropertyChanged
         OperationSubtitle = "Sao tồn cuối năm nguồn thành tồn đầu năm đích trong cùng một database.";
         TransferDescription =
             $"Tồn cuối năm {FromYear} của từng mặt hàng sẽ thành tồn đầu năm {ToYear}. " +
-            "Tổng nhập/xuất năm đích được đặt về 0 (chỉ khi năm đích chưa có phát sinh).";
+            "Khi năm đích đã có phát sinh, hệ thống sẽ cập nhật tồn đầu và tính lại sổ chi tiết (không ghi đè phiếu nhập/xuất).";
 
         FromYearHeader = $"Năm nguồn {FromYear}";
         ToYearHeader = $"Năm đích {ToYear}";
@@ -91,32 +99,50 @@ public sealed class CarryForwardViewModel : INotifyPropertyChanged
             $"• Phiếu nhập: {toYear.ReceiptVoucherCount:N0}\n" +
             $"• Phiếu cân đối: {toYear.BalanceIssueVoucherCount:N0}";
 
-        if (fromYear.PeriodCount == 0)
+        AllowUpdateOpeningText = $"Cho phép cập nhật lại tồn đầu năm {ToYear} từ tồn cuối năm {FromYear} (giữ nguyên các phiếu đã lập)";
+
+        UpdateExecutionStatus();
+
+        var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        _backupFilePath = Path.Combine(docs, $"NXT_{FromYear}_cuoi_nam_{OpenedAt:yyyyMMdd_HHmmss}.db");
+        BackupHint = $"File backup mặc định gắn nhãn năm nguồn ({FromYear}). Đây là bản sao toàn bộ database.";
+    }
+
+    private void UpdateExecutionStatus()
+    {
+        if (_fromYearActivity.PeriodCount == 0)
         {
             CanExecute = false;
             StatusMessage = $"Không thể chuyển kỳ: chưa có dữ liệu tồn năm {FromYear}.";
             StatusBrush = Brushes.DarkRed;
         }
-        else if (toYear.HasStockOrVoucherActivity)
+        else if (_toYearActivity.HasStockOrVoucherActivity)
         {
-            CanExecute = false;
-            StatusMessage =
-                $"Không thể chuyển kỳ: năm {ToYear} đã có nhập/xuất hoặc phiếu phát sinh. " +
-                "Tránh ghi đè dữ liệu đang dùng.";
-            StatusBrush = Brushes.DarkRed;
+            if (_allowUpdateOpeningWithExistingActivity)
+            {
+                CanExecute = true;
+                StatusMessage =
+                    $"Sẵn sàng cập nhật lại tồn đầu năm {ToYear} theo tồn cuối năm {FromYear} và đồng bộ sổ chi tiết. " +
+                    "Các phiếu nhập/xuất đã lập trong năm sẽ được bảo toàn nguyên vẹn.";
+                StatusBrush = Brushes.DarkOrange;
+            }
+            else
+            {
+                CanExecute = false;
+                StatusMessage =
+                    $"Năm {ToYear} đã có {(_toYearActivity.ReceiptVoucherCount + _toYearActivity.BalanceIssueVoucherCount)} phiếu phát sinh. " +
+                    "Tick chọn 'Cho phép cập nhật lại tồn đầu' bên dưới nếu bạn muốn đồng bộ lại số tồn đầu từ năm trước.";
+                StatusBrush = Brushes.DarkRed;
+            }
         }
         else
         {
             CanExecute = true;
-            StatusMessage = toYear.PeriodCount > 0
+            StatusMessage = _toYearActivity.PeriodCount > 0
                 ? $"Năm {ToYear} đã có tồn đầu nhưng chưa phát sinh — sẽ ghi đè tồn đầu từ năm {FromYear}."
                 : $"Sẵn sàng tạo tồn đầu năm {ToYear} từ tồn cuối năm {FromYear}.";
             StatusBrush = Brushes.DarkGreen;
         }
-
-        var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        _backupFilePath = Path.Combine(docs, $"NXT_{FromYear}_cuoi_nam_{OpenedAt:yyyyMMdd_HHmmss}.db");
-        BackupHint = $"File backup mặc định gắn nhãn năm nguồn ({FromYear}). Đây là bản sao toàn bộ database.";
     }
 
     public int WorkingYear { get; }
@@ -130,13 +156,58 @@ public sealed class CarryForwardViewModel : INotifyPropertyChanged
     public string ToYearHeader { get; }
     public string FromSummaryText { get; }
     public string ToSummaryText { get; }
-    public string StatusMessage { get; }
-    public Brush StatusBrush { get; }
-    public bool CanExecute { get; }
+    public string AllowUpdateOpeningText { get; }
+    public bool HasTargetActivity => _toYearActivity.HasStockOrVoucherActivity;
+
+    public string StatusMessage
+    {
+        get => _statusMessage;
+        private set
+        {
+            if (_statusMessage == value) return;
+            _statusMessage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public Brush StatusBrush
+    {
+        get => _statusBrush;
+        private set
+        {
+            if (Equals(_statusBrush, value)) return;
+            _statusBrush = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanExecute
+    {
+        get => _canExecute;
+        private set
+        {
+            if (_canExecute == value) return;
+            _canExecute = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string BackupHint { get; }
 
     public string OpenedAtText => OpenedAt.ToString("dd/MM/yyyy HH:mm:ss");
     public string WorkingYearText => WorkingYear.ToString();
+
+    public bool AllowUpdateOpeningWithExistingActivity
+    {
+        get => _allowUpdateOpeningWithExistingActivity;
+        set
+        {
+            if (_allowUpdateOpeningWithExistingActivity == value) return;
+            _allowUpdateOpeningWithExistingActivity = value;
+            OnPropertyChanged();
+            UpdateExecutionStatus();
+        }
+    }
 
     public bool ExcludeZeroClosingStock
     {

@@ -28,9 +28,9 @@
     <RootNamespace>Inventory.App</RootNamespace>
     <Product>Quản lý nhập xuất tồn (NXT)</Product>
     <AssemblyTitle>Quản lý nhập xuất tồn</AssemblyTitle>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -42,7 +42,7 @@
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                     <Border DockPanel.Dock="Right" Background="#FF2563EB" CornerRadius="6" Padding="8,4" VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <TextBlock Text="v1.1" Foreground="White" FontSize="12" FontWeight="Bold"/>
+                        <TextBlock Text="v1.2" Foreground="White" FontSize="12" FontWeight="Bold"/>
                     </Border>
                 </DockPanel>
             </Border>
@@ -51,7 +51,7 @@
             <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="24,16,24,12">
                 <DockPanel Margin="0,0,0,8">
                     <TextBlock x:Name="StatusTextBlock"
-                               Text="Đang khởi động ứng dụng v1.1..."
+                               Text="Đang khởi động ứng dụng v1.2..."
                                FontSize="13"
                                Foreground="#FF374151"
                                FontWeight="SemiBold"
@@ -84,7 +84,7 @@
                                FontSize="11"
                                Foreground="#FF6B7280"
                                DockPanel.Dock="Left"/>
-                    <TextBlock Text="v1.1"
+                    <TextBlock Text="v1.2"
                                FontSize="11"
                                FontWeight="Bold"
                                Foreground="#FF2563EB"

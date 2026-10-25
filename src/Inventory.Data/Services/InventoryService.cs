@@ -448,6 +448,8 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 $"File tồn đầu bị trùng tên + đơn giá + danh mục + loại hàng: {string.Join("; ", duplicatePairs)}.");
         }
 
+        var itemsAndLines = new List<(Item Item, OpeningBalanceInput Line)>();
+
         foreach (var line in lines)
         {
             if (line.OpeningQuantity < 0)
@@ -503,8 +505,21 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 item.Unit = line.Unit.Trim();
             }
 
-            var openingNote = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim();
+            itemsAndLines.Add((item, line));
+        }
 
+        // Kiểm tra an toàn dòng thời gian trước khi áp dụng tồn đầu mới
+        var proposedOpenings = itemsAndLines.ToDictionary(x => x.Item.Id, x => x.Line.OpeningQuantity);
+        await ValidateTimelineStockAsync(
+            db,
+            year,
+            proposedOpenings.Keys.ToList(),
+            overrideOpenings: proposedOpenings);
+
+        var impactedPeriods = new HashSet<(int ItemId, int Year)>();
+        foreach (var (item, line) in itemsAndLines)
+        {
+            var openingNote = string.IsNullOrWhiteSpace(line.Note) ? null : line.Note.Trim();
             var period = await db.StockPeriods.SingleOrDefaultAsync(x => x.Year == year && x.ItemId == item.Id);
             if (period is null)
             {
@@ -518,6 +533,7 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                     ClosingQuantity = line.OpeningQuantity,
                     UnitPrice = line.UnitPrice,
                     IsManualAdjustment = true,
+                    IsHiddenInDashboard = false,
                     Note = openingNote
                 };
                 db.StockPeriods.Add(period);
@@ -529,11 +545,18 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 period.UnitPrice = line.UnitPrice;
                 period.IsManualAdjustment = true;
                 period.Note = openingNote;
+                if (line.OpeningQuantity > 0 || period.ReceivedQuantity > 0 || period.IssuedQuantity > 0)
+                {
+                    period.IsHiddenInDashboard = false;
+                }
             }
 
             TryApplyCatalogNoteFromSource(item, openingNote, DateTime.Now, syncEmpty: false);
+            impactedPeriods.Add((item.Id, year));
         }
 
+        await db.SaveChangesAsync();
+        await RebuildLedgerBalancesAsync(db, impactedPeriods);
         await db.SaveChangesAsync();
     }
 
@@ -566,7 +589,8 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         int fromYear,
         int toYear,
         bool overwriteExisting,
-        bool excludeZeroClosingStock = true)
+        bool excludeZeroClosingStock = true,
+        bool allowUpdateOpeningWithExistingActivity = false)
     {
         if (toYear != fromYear + 1)
         {
@@ -581,18 +605,18 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         }
 
         var targetActivity = await GetYearStockActivityAsync(toYear);
-        if (targetActivity.HasStockOrVoucherActivity)
+        if (targetActivity.HasStockOrVoucherActivity && !allowUpdateOpeningWithExistingActivity)
         {
             throw new InvalidOperationException(
                 $"Không chuyển kỳ sang năm {toYear} vì năm này đã có phát sinh.\n" +
                 $"- Mặt hàng đã nhập/xuất: {targetActivity.ItemsWithMovementCount}\n" +
                 $"- Phiếu nhập: {targetActivity.ReceiptVoucherCount}\n" +
                 $"- Phiếu cân đối: {targetActivity.BalanceIssueVoucherCount}\n\n" +
-                "Hãy chọn năm mới trống, hoặc chỉ chỉnh tồn đầu năm thủ công (không ghi đè nhập/xuất).");
+                "Hãy chọn năm mới trống, hoặc bật tùy chọn cập nhật tồn đầu năm khi năm đích đã có phát sinh.");
         }
 
         var existingTargets = await db.StockPeriods.Where(x => x.Year == toYear).ToListAsync();
-        if (existingTargets.Count > 0 && !overwriteExisting)
+        if (existingTargets.Count > 0 && !overwriteExisting && !allowUpdateOpeningWithExistingActivity)
         {
             throw new InvalidOperationException(
                 $"Năm {toYear} đã có {existingTargets.Count} dòng tồn đầu. " +
@@ -601,6 +625,19 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
 
         var targetsByItem = existingTargets.ToDictionary(x => x.ItemId);
         var fromByItem = fromPeriods.ToDictionary(x => x.ItemId);
+
+        // Kiểm tra an toàn dòng thời gian nếu năm đích đã có phát sinh
+        if (targetActivity.HasStockOrVoucherActivity)
+        {
+            var proposedOpenings = fromPeriods.ToDictionary(x => x.ItemId, x => x.ClosingQuantity);
+            await ValidateTimelineStockAsync(
+                db,
+                toYear,
+                proposedOpenings.Keys.ToList(),
+                overrideOpenings: proposedOpenings);
+        }
+
+        var impactedPeriods = new HashSet<(int ItemId, int Year)>();
 
         foreach (var from in fromPeriods)
         {
@@ -621,16 +658,21 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 };
                 db.StockPeriods.Add(created);
                 targetsByItem[from.ItemId] = created;
+                impactedPeriods.Add((from.ItemId, toYear));
                 continue;
             }
 
             target.OpeningQuantity = from.ClosingQuantity;
-            target.ReceivedQuantity = 0;
-            target.IssuedQuantity = 0;
-            target.ClosingQuantity = from.ClosingQuantity;
+            if (!targetActivity.HasStockOrVoucherActivity)
+            {
+                target.ReceivedQuantity = 0;
+                target.IssuedQuantity = 0;
+            }
+            target.ClosingQuantity = target.OpeningQuantity + target.ReceivedQuantity - target.IssuedQuantity;
             target.UnitPrice = from.UnitPrice;
             target.IsManualAdjustment = false;
-            target.IsHiddenInDashboard = isHidden;
+            target.IsHiddenInDashboard = isHidden && target.ReceivedQuantity == 0 && target.IssuedQuantity == 0;
+            impactedPeriods.Add((from.ItemId, toYear));
         }
 
         if (excludeZeroClosingStock)
@@ -646,10 +688,14 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 if (targetsByItem.TryGetValue(itemId, out var target))
                 {
                     target.OpeningQuantity = 0;
-                    target.ReceivedQuantity = 0;
-                    target.IssuedQuantity = 0;
-                    target.ClosingQuantity = 0;
-                    target.IsHiddenInDashboard = true;
+                    if (!targetActivity.HasStockOrVoucherActivity)
+                    {
+                        target.ReceivedQuantity = 0;
+                        target.IssuedQuantity = 0;
+                    }
+                    target.ClosingQuantity = target.OpeningQuantity + target.ReceivedQuantity - target.IssuedQuantity;
+                    target.IsHiddenInDashboard = target.ReceivedQuantity == 0 && target.IssuedQuantity == 0;
+                    impactedPeriods.Add((itemId, toYear));
                 }
                 else
                 {
@@ -667,11 +713,18 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                     };
                     db.StockPeriods.Add(created);
                     targetsByItem[itemId] = created;
+                    impactedPeriods.Add((itemId, toYear));
                 }
             }
         }
 
         await db.SaveChangesAsync();
+
+        if (targetActivity.HasStockOrVoucherActivity)
+        {
+            await RebuildLedgerBalancesAsync(db, impactedPeriods);
+            await db.SaveChangesAsync();
+        }
     }
 
     public async Task<Receipt> CreateReceiptAsync(ReceiptInput input)
@@ -824,6 +877,142 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         return issue;
     }
 
+    private sealed record StockTimelineEvent(
+        DateTime Date,
+        bool IsReceipt,
+        decimal Quantity,
+        string DocumentNumber
+    );
+
+    private static async Task ValidateTimelineStockAsync(
+        InventoryDbContext db,
+        int year,
+        IReadOnlyCollection<int> itemIds,
+        IReadOnlyDictionary<int, decimal>? overrideOpenings = null,
+        IReadOnlyCollection<(int ItemId, DateTime Date, decimal Quantity)>? additionalIssues = null,
+        int? excludeIssueId = null,
+        int? excludeReceiptId = null)
+    {
+        var distinctItemIds = itemIds.Distinct().ToList();
+        if (distinctItemIds.Count == 0)
+        {
+            return;
+        }
+
+        var yearStart = new DateTime(year, 1, 1);
+        var yearEnd = new DateTime(year, 12, 31);
+
+        var items = await db.Items.AsNoTracking()
+            .Where(x => distinctItemIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id);
+
+        var periods = await db.StockPeriods.AsNoTracking()
+            .Where(x => x.Year == year && distinctItemIds.Contains(x.ItemId))
+            .ToDictionaryAsync(x => x.ItemId);
+
+        var receipts = await (
+            from line in db.ReceiptLines.AsNoTracking()
+            join receipt in db.Receipts.AsNoTracking() on line.ReceiptId equals receipt.Id
+            where distinctItemIds.Contains(line.ItemId)
+                  && receipt.ReceiptDate >= yearStart
+                  && receipt.ReceiptDate <= yearEnd
+                  && (!excludeReceiptId.HasValue || receipt.Id != excludeReceiptId.Value)
+            select new
+            {
+                line.ItemId,
+                receipt.ReceiptDate,
+                line.Quantity,
+                receipt.ReceiptNumber
+            }
+        ).ToListAsync();
+
+        var issues = await (
+            from line in db.IssueLines.AsNoTracking()
+            join issue in db.Issues.AsNoTracking() on line.IssueId equals issue.Id
+            where distinctItemIds.Contains(line.ItemId)
+                  && issue.ParentIssueId == null
+                  && issue.IssueDate >= yearStart
+                  && issue.IssueDate <= yearEnd
+                  && (!excludeIssueId.HasValue || issue.Id != excludeIssueId.Value)
+            select new
+            {
+                line.ItemId,
+                issue.IssueDate,
+                line.Quantity,
+                issue.IssueNumber
+            }
+        ).ToListAsync();
+
+        foreach (var itemId in distinctItemIds)
+        {
+            var item = items.GetValueOrDefault(itemId);
+            var itemCode = item?.ItemCode ?? $"ID-{itemId}";
+
+            decimal runningBalance;
+            if (overrideOpenings != null && overrideOpenings.TryGetValue(itemId, out var customOpening))
+            {
+                runningBalance = customOpening;
+            }
+            else if (periods.TryGetValue(itemId, out var period))
+            {
+                runningBalance = period.OpeningQuantity;
+            }
+            else
+            {
+                runningBalance = 0m;
+            }
+
+            if (runningBalance < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Tồn đầu năm {year} của mặt hàng {itemCode} không được âm (hiện tại: {runningBalance:N0}).");
+            }
+
+            var events = new List<StockTimelineEvent>();
+
+            foreach (var r in receipts.Where(x => x.ItemId == itemId))
+            {
+                events.Add(new StockTimelineEvent(r.ReceiptDate.Date, true, r.Quantity, r.ReceiptNumber));
+            }
+
+            foreach (var i in issues.Where(x => x.ItemId == itemId))
+            {
+                events.Add(new StockTimelineEvent(i.IssueDate.Date, false, i.Quantity, i.IssueNumber));
+            }
+
+            if (additionalIssues != null)
+            {
+                foreach (var a in additionalIssues.Where(x => x.ItemId == itemId))
+                {
+                    events.Add(new StockTimelineEvent(a.Date.Date, false, a.Quantity, "Phiếu xuất đang lập/sửa"));
+                }
+            }
+
+            var sortedEvents = events
+                .OrderBy(e => e.Date)
+                .ThenByDescending(e => e.IsReceipt ? 1 : 0)
+                .ToList();
+
+            foreach (var evt in sortedEvents)
+            {
+                if (evt.IsReceipt)
+                {
+                    runningBalance += evt.Quantity;
+                }
+                else
+                {
+                    if (runningBalance < evt.Quantity)
+                    {
+                        throw new InvalidOperationException(
+                            $"Mặt hàng {itemCode} không đủ tồn tại ngày {evt.Date:dd/MM/yyyy}. " +
+                            $"Tồn: {runningBalance:N0}, yêu cầu xuất: {evt.Quantity:N0}.");
+                    }
+                    runningBalance -= evt.Quantity;
+                }
+            }
+        }
+    }
+
     private static async Task EnsureSufficientStockAsync(
         InventoryDbContext db,
         IReadOnlyCollection<ResolvedLine> lines,
@@ -831,49 +1020,13 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         int? excludeIssueId = null)
     {
         var itemIds = lines.Select(x => x.Item.Id).Distinct().ToList();
-        var yearStart = new DateTime(issueDate.Year, 1, 1);
-        var asOf = issueDate.Date;
-        var openings = await db.StockPeriods
-            .Where(x => x.Year == issueDate.Year && itemIds.Contains(x.ItemId))
-            .Select(x => new { x.ItemId, x.OpeningQuantity })
-            .ToDictionaryAsync(x => x.ItemId, x => x.OpeningQuantity);
-        var receiptRows = await (
-            from line in db.ReceiptLines
-            join receipt in db.Receipts on line.ReceiptId equals receipt.Id
-            where itemIds.Contains(line.ItemId)
-                  && receipt.ReceiptDate >= yearStart
-                  && receipt.ReceiptDate <= asOf
-            select new { line.ItemId, line.Quantity }
-        ).ToListAsync();
-        var issueRows = await (
-            from line in db.IssueLines
-            join issue in db.Issues on line.IssueId equals issue.Id
-            where itemIds.Contains(line.ItemId)
-                  && issue.ParentIssueId == null
-                  && issue.IssueDate >= yearStart
-                  && issue.IssueDate <= asOf
-                  && (!excludeIssueId.HasValue || issue.Id != excludeIssueId.Value)
-            select new { line.ItemId, line.Quantity }
-        ).ToListAsync();
-        var received = receiptRows
-            .GroupBy(x => x.ItemId)
-            .ToDictionary(x => x.Key, x => x.Sum(row => row.Quantity));
-        var issued = issueRows
-            .GroupBy(x => x.ItemId)
-            .ToDictionary(x => x.Key, x => x.Sum(row => row.Quantity));
-
-        foreach (var line in lines)
-        {
-            var available = openings.GetValueOrDefault(line.Item.Id)
-                + received.GetValueOrDefault(line.Item.Id)
-                - issued.GetValueOrDefault(line.Item.Id);
-            if (line.Quantity > available)
-            {
-                throw new InvalidOperationException(
-                    $"Mặt hàng {line.Item.ItemCode} không đủ tồn tại ngày {asOf:dd/MM/yyyy}. " +
-                    $"Tồn: {available:N0}, yêu cầu xuất: {line.Quantity:N0}.");
-            }
-        }
+        var additionalIssues = lines.Select(x => (x.Item.Id, issueDate.Date, x.Quantity)).ToList();
+        await ValidateTimelineStockAsync(
+            db,
+            issueDate.Year,
+            itemIds,
+            additionalIssues: additionalIssues,
+            excludeIssueId: excludeIssueId);
     }
 
     public async Task<List<DashboardRow>> GetDashboardRowsAsync(int year)
@@ -907,6 +1060,7 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 x.ReceivedQuantity,
                 x.IssuedQuantity,
                 x.ClosingQuantity,
+                x.UnitPrice,
                 x.IsHiddenInDashboard
             })
             .ToDictionaryAsync(x => x.ItemId);
@@ -929,6 +1083,7 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             var received = period?.ReceivedQuantity ?? 0m;
             var issued = period?.IssuedQuantity ?? 0m;
             var closing = period?.ClosingQuantity ?? (opening + received - issued);
+            var unitPrice = (period is not null && period.UnitPrice > 0) ? period.UnitPrice : item.UnitPrice;
             rows.Add(new DashboardRow
             {
                 ItemId = item.Id,
@@ -936,13 +1091,13 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 Category = item.Category,
                 ItemName = item.ItemName,
                 Unit = item.Unit,
-                UnitPrice = item.UnitPrice,
+                UnitPrice = unitPrice,
                 UsageType = item.UsageType,
                 OpeningQuantity = opening,
                 ReceivedQuantity = received,
                 IssuedQuantity = issued,
                 ClosingQuantity = closing,
-                Amount = closing * item.UnitPrice,
+                Amount = closing * unitPrice,
                 Note = item.Note
             });
         }
@@ -1972,6 +2127,13 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             await db.SaveChangesAsync();
         }
 
+        // Kiểm tra an toàn dòng thời gian sau khi cập nhật phiếu nhập
+        var impactedByYear = impactedPeriods.GroupBy(x => x.Year);
+        foreach (var group in impactedByYear)
+        {
+            await ValidateTimelineStockAsync(db, group.Key, group.Select(x => x.ItemId).ToList());
+        }
+
         await tx.CommitAsync();
         return receipt;
     }
@@ -2095,6 +2257,14 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             ?? throw new InvalidOperationException("Không tìm thấy phiếu nhập cần xóa.");
 
         var itemIdsOnReceipt = receipt.Lines.Select(x => x.ItemId).Distinct().ToList();
+
+        // Kiểm tra an toàn dòng thời gian: không cho xóa nếu hàng này đã được xuất dùng ở các phiếu xuất sau đó
+        await ValidateTimelineStockAsync(
+            db,
+            receipt.ReceiptDate.Year,
+            itemIdsOnReceipt,
+            excludeReceiptId: receipt.Id);
+
         var impactedPeriods = new HashSet<(int ItemId, int Year)>();
         foreach (var line in receipt.Lines)
         {
@@ -2106,6 +2276,10 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
 
             period.ReceivedQuantity -= line.Quantity;
             period.ClosingQuantity = period.OpeningQuantity + period.ReceivedQuantity - period.IssuedQuantity;
+            if (period.ClosingQuantity < 0)
+            {
+                throw new InvalidOperationException($"Không thể xóa phiếu nhập vì mặt hàng {line.ItemId} đã được xuất dùng (tồn cuối sẽ bị âm: {period.ClosingQuantity:N0}).");
+            }
             impactedPeriods.Add((line.ItemId, receipt.ReceiptDate.Year));
         }
 
@@ -2165,7 +2339,14 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                     p.OpeningQuantity != 0
                     || p.ReceivedQuantity != 0
                     || p.IssuedQuantity != 0
-                    || p.ClosingQuantity != 0))
+                    || p.ClosingQuantity != 0
+                    || !string.IsNullOrWhiteSpace(p.Note)))
+            {
+                continue;
+            }
+
+            // Nếu mặt hàng xuất hiện ở nhiều năm (ví dụ đã tồn tại ở các năm khác), bảo toàn danh mục
+            if (periods.Count > 1)
             {
                 continue;
             }

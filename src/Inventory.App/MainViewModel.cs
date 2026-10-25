@@ -378,7 +378,8 @@ public partial class MainViewModel(
                         vm.FromYear,
                         vm.ToYear,
                         overwriteExisting: true,
-                        excludeZeroClosingStock: vm.ExcludeZeroClosingStock);
+                        excludeZeroClosingStock: vm.ExcludeZeroClosingStock,
+                        allowUpdateOpeningWithExistingActivity: vm.AllowUpdateOpeningWithExistingActivity);
                     await SyncLiveDataAsync(LiveDataScope.Dashboard | LiveDataScope.OpeningBalances);
                 });
             var zeroStockNote = vm.ExcludeZeroClosingStock

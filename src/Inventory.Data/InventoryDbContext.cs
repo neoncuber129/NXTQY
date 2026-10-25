@@ -117,6 +117,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
             entity.Property(x => x.ClosingQuantity).HasPrecision(18, 3);
             entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
             entity.Property(x => x.Note).HasMaxLength(1000);
+            entity.Property(x => x.IsHiddenInDashboard).HasDefaultValue(false);
             entity.HasIndex(x => new { x.Year, x.ItemId }).IsUnique();
         });
 

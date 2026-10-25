@@ -56,6 +56,7 @@ public partial class CarryForwardWindow : Window
 
 public sealed class CarryForwardViewModel : INotifyPropertyChanged
 {
+    private bool _excludeZeroClosingStock = UiPreferenceService.LoadExcludeZeroClosingStockOnCarryForward();
     private bool _createBackup = true;
     private string _backupFilePath;
 
@@ -76,6 +77,8 @@ public sealed class CarryForwardViewModel : INotifyPropertyChanged
         ToYearHeader = $"Năm đích {ToYear}";
         FromSummaryText =
             $"• Số mặt hàng có kỳ tồn: {fromYear.PeriodCount:N0}\n" +
+            $"  - Tồn cuối > 0: {fromYear.PositiveClosingCount:N0}\n" +
+            $"  - Tồn cuối = 0: {fromYear.ZeroClosingCount:N0}\n" +
             $"• Mặt hàng đã nhập/xuất: {fromYear.ItemsWithMovementCount:N0}\n" +
             $"• Tổng nhập (kỳ): {fromYear.TotalReceived:N0}\n" +
             $"• Tổng xuất (kỳ): {fromYear.TotalIssued:N0}\n" +
@@ -134,6 +137,22 @@ public sealed class CarryForwardViewModel : INotifyPropertyChanged
 
     public string OpenedAtText => OpenedAt.ToString("dd/MM/yyyy HH:mm:ss");
     public string WorkingYearText => WorkingYear.ToString();
+
+    public bool ExcludeZeroClosingStock
+    {
+        get => _excludeZeroClosingStock;
+        set
+        {
+            if (_excludeZeroClosingStock == value)
+            {
+                return;
+            }
+
+            _excludeZeroClosingStock = value;
+            UiPreferenceService.SaveExcludeZeroClosingStockOnCarryForward(value);
+            OnPropertyChanged();
+        }
+    }
 
     public bool CreateBackup
     {

@@ -55,6 +55,14 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         }
 
         await EnsureMigrationHistoryAsync(db, "20260725120000_AddStockPeriodNote");
+
+        if (!await ColumnExistsAsync(db, "StockPeriods", "IsHiddenInDashboard"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """ALTER TABLE "StockPeriods" ADD COLUMN "IsHiddenInDashboard" INTEGER NOT NULL DEFAULT 0""");
+        }
+
+        await EnsureMigrationHistoryAsync(db, "20261025110000_AddStockPeriodIsHiddenInDashboard");
     }
 
     private static async Task<bool> ColumnExistsAsync(InventoryDbContext db, string table, string column)
@@ -549,10 +557,16 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             TotalReceived: periods.Sum(p => p.ReceivedQuantity),
             TotalIssued: periods.Sum(p => p.IssuedQuantity),
             ReceiptVoucherCount: receiptCount,
-            BalanceIssueVoucherCount: issueCount);
+            BalanceIssueVoucherCount: issueCount,
+            ZeroClosingCount: periods.Count(p => p.ClosingQuantity == 0),
+            PositiveClosingCount: periods.Count(p => p.ClosingQuantity > 0));
     }
 
-    public async Task CarryForwardPeriodAsync(int fromYear, int toYear, bool overwriteExisting)
+    public async Task CarryForwardPeriodAsync(
+        int fromYear,
+        int toYear,
+        bool overwriteExisting,
+        bool excludeZeroClosingStock = true)
     {
         if (toYear != fromYear + 1)
         {
@@ -586,8 +600,11 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         }
 
         var targetsByItem = existingTargets.ToDictionary(x => x.ItemId);
+        var fromByItem = fromPeriods.ToDictionary(x => x.ItemId);
+
         foreach (var from in fromPeriods)
         {
+            var isHidden = excludeZeroClosingStock && from.ClosingQuantity == 0;
             if (!targetsByItem.TryGetValue(from.ItemId, out var target))
             {
                 var created = new StockPeriod
@@ -599,7 +616,8 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                     IssuedQuantity = 0,
                     ClosingQuantity = from.ClosingQuantity,
                     UnitPrice = from.UnitPrice,
-                    IsManualAdjustment = false
+                    IsManualAdjustment = false,
+                    IsHiddenInDashboard = isHidden
                 };
                 db.StockPeriods.Add(created);
                 targetsByItem[from.ItemId] = created;
@@ -612,6 +630,45 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             target.ClosingQuantity = from.ClosingQuantity;
             target.UnitPrice = from.UnitPrice;
             target.IsManualAdjustment = false;
+            target.IsHiddenInDashboard = isHidden;
+        }
+
+        if (excludeZeroClosingStock)
+        {
+            var allItemIds = await db.Items.Select(x => x.Id).ToListAsync();
+            foreach (var itemId in allItemIds)
+            {
+                if (fromByItem.ContainsKey(itemId))
+                {
+                    continue;
+                }
+
+                if (targetsByItem.TryGetValue(itemId, out var target))
+                {
+                    target.OpeningQuantity = 0;
+                    target.ReceivedQuantity = 0;
+                    target.IssuedQuantity = 0;
+                    target.ClosingQuantity = 0;
+                    target.IsHiddenInDashboard = true;
+                }
+                else
+                {
+                    var created = new StockPeriod
+                    {
+                        Year = toYear,
+                        ItemId = itemId,
+                        OpeningQuantity = 0,
+                        ReceivedQuantity = 0,
+                        IssuedQuantity = 0,
+                        ClosingQuantity = 0,
+                        UnitPrice = 0,
+                        IsManualAdjustment = false,
+                        IsHiddenInDashboard = true
+                    };
+                    db.StockPeriods.Add(created);
+                    targetsByItem[itemId] = created;
+                }
+            }
         }
 
         await db.SaveChangesAsync();
@@ -664,6 +721,7 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             period.ReceivedQuantity += line.Quantity;
             period.ClosingQuantity = period.OpeningQuantity + period.ReceivedQuantity - period.IssuedQuantity;
             period.UnitPrice = line.UnitPrice;
+            period.IsHiddenInDashboard = false;
             impactedPeriods.Add((line.Item.Id, input.ReceiptDate.Year));
 
             db.StockLedgerEntries.Add(new StockLedgerEntry
@@ -848,14 +906,25 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
                 x.OpeningQuantity,
                 x.ReceivedQuantity,
                 x.IssuedQuantity,
-                x.ClosingQuantity
+                x.ClosingQuantity,
+                x.IsHiddenInDashboard
             })
             .ToDictionaryAsync(x => x.ItemId);
 
         var rows = new List<DashboardRow>(items.Count);
         foreach (var item in items)
         {
-            periods.TryGetValue(item.Id, out var period);
+            if (periods.TryGetValue(item.Id, out var period))
+            {
+                if (period.IsHiddenInDashboard
+                    && period.OpeningQuantity == 0
+                    && period.ReceivedQuantity == 0
+                    && period.IssuedQuantity == 0)
+                {
+                    continue;
+                }
+            }
+
             var opening = period?.OpeningQuantity ?? 0m;
             var received = period?.ReceivedQuantity ?? 0m;
             var issued = period?.IssuedQuantity ?? 0m;
@@ -2527,6 +2596,10 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             if (!entriesByItemYear.TryGetValue(key, out var entries))
             {
                 period.ClosingQuantity = period.OpeningQuantity + period.ReceivedQuantity - period.IssuedQuantity;
+                if (period.ReceivedQuantity != 0 || period.IssuedQuantity != 0 || period.OpeningQuantity != 0)
+                {
+                    period.IsHiddenInDashboard = false;
+                }
                 continue;
             }
 
@@ -2538,6 +2611,10 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
             }
 
             period.ClosingQuantity = period.OpeningQuantity + period.ReceivedQuantity - period.IssuedQuantity;
+            if (period.ReceivedQuantity != 0 || period.IssuedQuantity != 0 || period.OpeningQuantity != 0)
+            {
+                period.IsHiddenInDashboard = false;
+            }
         }
     }
 

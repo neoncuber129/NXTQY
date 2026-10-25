@@ -13,6 +13,7 @@ public static class UiPreferenceService
         public bool IsModeB { get; set; }
         public bool OmitZeroStockAtIssueDate { get; set; } = true;
         public bool HideZeroQuantityBalanceExport { get; set; } = true;
+        public bool ExcludeZeroClosingStockOnCarryForward { get; set; } = true;
     }
 
     private static readonly object SyncRoot = new();
@@ -156,6 +157,33 @@ public static class UiPreferenceService
             var path = ResolveSettingsPath(settingsPath);
             var settings = LoadSettings(path);
             settings.HideZeroQuantityBalanceExport = value;
+            SaveSettings(path, settings);
+        }
+    }
+
+    public static bool LoadExcludeZeroClosingStockOnCarryForward(string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            try
+            {
+                var path = ResolveSettingsPath(settingsPath);
+                return LoadSettings(path).ExcludeZeroClosingStockOnCarryForward;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+
+    public static void SaveExcludeZeroClosingStockOnCarryForward(bool value, string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            var path = ResolveSettingsPath(settingsPath);
+            var settings = LoadSettings(path);
+            settings.ExcludeZeroClosingStockOnCarryForward = value;
             SaveSettings(path, settings);
         }
     }

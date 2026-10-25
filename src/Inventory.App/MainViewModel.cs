@@ -374,12 +374,19 @@ public partial class MainViewModel(
                 $"Đang chuyển kỳ {vm.FromYear} → {vm.ToYear}...",
                 async () =>
                 {
-                    await inventoryService.CarryForwardPeriodAsync(vm.FromYear, vm.ToYear, overwriteExisting: true);
+                    await inventoryService.CarryForwardPeriodAsync(
+                        vm.FromYear,
+                        vm.ToYear,
+                        overwriteExisting: true,
+                        excludeZeroClosingStock: vm.ExcludeZeroClosingStock);
                     await SyncLiveDataAsync(LiveDataScope.Dashboard | LiveDataScope.OpeningBalances);
                 });
+            var zeroStockNote = vm.ExcludeZeroClosingStock
+                ? " (đã loại các mặt hàng tồn cuối = 0 khỏi Dashboard năm sau)"
+                : string.Empty;
             SetStatusAfterSave(
                 $"Đã chuyển kỳ [{vm.OperationName}] lúc {DateTime.Now:dd/MM/yyyy HH:mm:ss} " +
-                $"(tồn cuối {vm.FromYear} → tồn đầu {vm.ToYear}).");
+                $"(tồn cuối {vm.FromYear} → tồn đầu {vm.ToYear}){zeroStockNote}.");
         }
         catch (Exception ex)
         {

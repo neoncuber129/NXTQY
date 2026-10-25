@@ -204,6 +204,8 @@ public sealed class StockPeriod
     public bool IsManualAdjustment { get; set; }
     /// <summary>Ghi chú tồn đầu năm (nguồn cho cột Ghi chú Dashboard, cùng phiếu nhập).</summary>
     public string? Note { get; set; }
+    /// <summary>Đánh dấu ẩn khỏi Dashboard trong năm này (khi chuyển kỳ loại bỏ mặt hàng tồn cuối = 0).</summary>
+    public bool IsHiddenInDashboard { get; set; }
 }
 
 /// <summary>Tóm tắt phát sinh tồn / phiếu trong một năm lịch.</summary>
@@ -214,7 +216,9 @@ public sealed record YearStockActivitySummary(
     decimal TotalReceived,
     decimal TotalIssued,
     int ReceiptVoucherCount,
-    int BalanceIssueVoucherCount)
+    int BalanceIssueVoucherCount,
+    int ZeroClosingCount = 0,
+    int PositiveClosingCount = 0)
 {
     public bool HasStockOrVoucherActivity =>
         ItemsWithMovementCount > 0

@@ -89,6 +89,12 @@
                 <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,0,0,12"
                            Foreground="{Binding StatusBrush}"/>
 
+                <CheckBox Content="Không chuyển mặt hàng tồn cuối bằng 0 sang Dashboard năm sau (mặc định)"
+                          IsChecked="{Binding ExcludeZeroClosingStock}"
+                          IsEnabled="{Binding CanExecute}"
+                          ToolTip="Các mặt hàng có số lượng tồn cuối năm trước bằng 0 sẽ không còn xuất hiện trên Dashboard của năm sau. Nếu năm sau có nhập kho mới, mặt hàng sẽ tự động xuất hiện lại."
+                          Margin="0,0,0,8"/>
+
                 <CheckBox Content="Backup trước khi chuyển kỳ (khuyến nghị)"
                           IsChecked="{Binding CreateBackup}"
                           IsEnabled="{Binding CanExecute}"

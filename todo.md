@@ -1,12 +1,10 @@
 # Tasks
 
-- [x] Cập nhật IssueSelectableItemViewModel trong VoucherDialogViewModels.cs để thêm thuộc tính AvailableStock <!-- id: 0 -->
-- [x] Cập nhật IssueDialogViewModel để cung cấp ResolveAvailabilityBatchAsync <!-- id: 1 -->
-- [x] Cập nhật ItemPickerViewModel trong ItemPickerWindow.xaml.cs để tải tồn hàng loạt, hỗ trợ HideZeroStock (mặc định true) và lọc view <!-- id: 2 -->
-- [x] Cập nhật ItemPickerWindow.xaml để thêm cột "Tồn ngày lập phiếu", nút checkbox "Ẩn mặt hàng tồn ngày lập phiếu = 0", và banner cảnh báo ngày tính tồn <!-- id: 3 -->
-- [x] Cập nhật IssueDialogWindow.xaml.cs để truyền batch availability resolver và await nạp tồn trước khi mở ItemPickerWindow <!-- id: 4 -->
-- [x] Bỏ nút "Xuất Excel" và Checkbox "Bỏ mặt hàng tồn ngày lập phiếu bằng 0" ở thanh công cụ ngoài của sổ cân đối (do đã tích hợp trực tiếp trong popup BalanceExportDialogWindow khi ấn "Xuất sổ cân đối") <!-- id: 5 -->
-- [x] Thêm Checkbox "Ẩn mặt hàng không xuất gì" (Quantity = 0) trong popup BalanceExportDialogWindow, mặc định tick <!-- id: 6 -->
-- [x] Ghi nhớ cả 2 trạng thái tick ("Bỏ tồn = 0" và "Ẩn không xuất") theo lần gần nhất người dùng chọn qua UiPreferenceService <!-- id: 7 -->
-- [x] Viết / chạy unit tests để đảm bảo toàn bộ hệ thống hoạt động chính xác (90/90 tests pass) <!-- id: 8 -->
-- [x] Cập nhật assumptions.md và hoàn thành <!-- id: 9 -->
+- [x] Bước 1: Đổi mặc định OmitZeroStockAndMovement = false trong PeriodStockReportFilter và MainViewModel <!-- id: 0 -->
+- [x] Bước 2: Thêm lưu/nạp cấu hình ReportCategoryOrder trong UiPreferenceService.cs <!-- id: 1 -->
+- [x] Bước 3: Cập nhật InventoryPeriodReportExcelExportService.cs hỗ trợ sắp xếp nhóm danh mục theo customCategoryOrder <!-- id: 2 -->
+- [x] Bước 4: Thiết kế cửa sổ WPF chuyên nghiệp CategoryOrderWindow (giao diện, nút di chuyển lên/xuống/đầu/cuối, A-Z, reset) <!-- id: 3 -->
+- [x] Bước 5: Thêm nút "↕ Sắp xếp nhóm" trên MainWindow.xaml và command OpenCategoryOrderDialogCommand trong MainViewModel.cs <!-- id: 4 -->
+- [x] Bước 6: Viết Unit Tests cho OmitZeroStockAndMovement mặc định false, customCategoryOrder trong Excel và UiPreferenceService <!-- id: 5 -->
+- [x] Bước 7: Chạy toàn bộ test suite đảm bảo pass 100% <!-- id: 6 -->
+- [x] Bước 8: Cập nhật assumptions.md và tổng kết kết quả <!-- id: 7 -->

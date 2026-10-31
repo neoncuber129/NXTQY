@@ -616,6 +616,25 @@ public sealed class SettingsAndViewModelTests
         });
     }
 
+    [Fact]
+    public void ReportCategoryOrder_Saves_And_Loads_Correctly()
+    {
+        using var tempDir = new TemporaryDirectory();
+        var settingsPath = System.IO.Path.Combine(tempDir.Path, "settings.json");
+
+        var initial = UiPreferenceService.LoadReportCategoryOrder(settingsPath);
+        Assert.Empty(initial);
+
+        var categories = new[] { "Vật tư tiêu hao", "Thuốc viên", "Thuốc tiêm" };
+        UiPreferenceService.SaveReportCategoryOrder(categories, settingsPath);
+
+        var loaded = UiPreferenceService.LoadReportCategoryOrder(settingsPath);
+        Assert.Equal(3, loaded.Count);
+        Assert.Equal("Vật tư tiêu hao", loaded[0]);
+        Assert.Equal("Thuốc viên", loaded[1]);
+        Assert.Equal("Thuốc tiêm", loaded[2]);
+    }
+
     private static void RunInSta(Action action)
     {
         Exception? exception = null;

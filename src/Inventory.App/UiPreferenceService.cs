@@ -14,6 +14,7 @@ public static class UiPreferenceService
         public bool OmitZeroStockAtIssueDate { get; set; } = true;
         public bool HideZeroQuantityBalanceExport { get; set; } = true;
         public bool ExcludeZeroClosingStockOnCarryForward { get; set; } = true;
+        public List<string> ReportCategoryOrder { get; set; } = [];
     }
 
     private static readonly object SyncRoot = new();
@@ -184,6 +185,37 @@ public static class UiPreferenceService
             var path = ResolveSettingsPath(settingsPath);
             var settings = LoadSettings(path);
             settings.ExcludeZeroClosingStockOnCarryForward = value;
+            SaveSettings(path, settings);
+        }
+    }
+
+    public static List<string> LoadReportCategoryOrder(string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            try
+            {
+                var path = ResolveSettingsPath(settingsPath);
+                return LoadSettings(path).ReportCategoryOrder ?? [];
+            }
+            catch
+            {
+                return [];
+            }
+        }
+    }
+
+    public static void SaveReportCategoryOrder(IEnumerable<string> categories, string? settingsPath = null)
+    {
+        lock (SyncRoot)
+        {
+            var path = ResolveSettingsPath(settingsPath);
+            var settings = LoadSettings(path);
+            settings.ReportCategoryOrder = categories
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             SaveSettings(path, settings);
         }
     }

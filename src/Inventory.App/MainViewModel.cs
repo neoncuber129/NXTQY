@@ -148,6 +148,93 @@ public partial class MainViewModel(
     [ObservableProperty] private bool summaryLabelByCode = true;
     public ObservableCollection<UnitSummaryUnitOption> SummaryUnitOptions { get; } = [];
 
+    // --- Tab Báo cáo số lượng và giá trị (NXT) ---
+    private readonly InventoryPeriodReportExcelExportService _periodReportExcelExportService = new();
+
+    public string[] PeriodReportModes { get; } = ["Theo Tháng", "Theo Quý", "Theo Năm", "Tùy chọn ngày"];
+    [ObservableProperty] private string selectedPeriodReportMode = "Theo Tháng";
+    [ObservableProperty] private int reportSelectedYear = DateTime.Today.Year;
+    public int[] ReportMonths { get; } = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    [ObservableProperty] private int reportSelectedMonth = DateTime.Today.Month;
+    public string[] ReportQuarters { get; } = ["Quý I", "Quý II", "Quý III", "Quý IV"];
+    [ObservableProperty] private string reportSelectedQuarter = "Quý I";
+    [ObservableProperty] private DateTime reportFromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    [ObservableProperty] private DateTime reportToDate = new(DateTime.Today.Year, DateTime.Today.Month, DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month));
+    [ObservableProperty] private bool reportOmitZeroStock;
+    [ObservableProperty] private string reportSelectedUsageType = "Tất cả";
+    public ObservableCollection<string> ReportUsageTypeOptions { get; } = ["Tất cả", "Trên cấp", "Tự túc"];
+    [ObservableProperty] private string reportSelectedCategory = "Tất cả";
+    public ObservableCollection<string> ReportCategoryOptions { get; } = ["Tất cả"];
+    public List<string> CustomCategoryOrder { get; private set; } = UiPreferenceService.LoadReportCategoryOrder();
+    [ObservableProperty] private string reportOldStockHeader = $"Tồn cũ {new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddDays(-1):d/M/yyyy}";
+    [ObservableProperty] private string reportClosingStockHeader = $"Tồn kho cuối kỳ {new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month)):d/M/yyyy}";
+
+    public ObservableCollection<PeriodReportSelectionPill> ReportModePills { get; } =
+    [
+        new() { Key = "Theo Tháng", Label = "📅 Theo Tháng", IsSelected = true },
+        new() { Key = "Theo Quý", Label = "📊 Theo Quý" },
+        new() { Key = "Theo Năm", Label = "📆 Theo Năm" },
+        new() { Key = "Tùy chọn ngày", Label = "⏱ Tùy chọn ngày" }
+    ];
+
+    public ObservableCollection<PeriodReportSelectionPill> ReportMonthPills { get; } =
+    [
+        new() { Key = "1", Label = "Th.1" },
+        new() { Key = "2", Label = "Th.2" },
+        new() { Key = "3", Label = "Th.3" },
+        new() { Key = "4", Label = "Th.4" },
+        new() { Key = "5", Label = "Th.5" },
+        new() { Key = "6", Label = "Th.6" },
+        new() { Key = "7", Label = "Th.7" },
+        new() { Key = "8", Label = "Th.8" },
+        new() { Key = "9", Label = "Th.9" },
+        new() { Key = "10", Label = "Th.10" },
+        new() { Key = "11", Label = "Th.11" },
+        new() { Key = "12", Label = "Th.12" }
+    ];
+
+    public ObservableCollection<PeriodReportSelectionPill> ReportQuarterPills { get; } =
+    [
+        new() { Key = "Quý I", Label = "Quý I", SubLabel = "T1 - T3" },
+        new() { Key = "Quý II", Label = "Quý II", SubLabel = "T4 - T6" },
+        new() { Key = "Quý III", Label = "Quý III", SubLabel = "T7 - T9" },
+        new() { Key = "Quý IV", Label = "Quý IV", SubLabel = "T10 - T12" }
+    ];
+
+    public ObservableCollection<PeriodStockReportRow> PeriodReportRows { get; } = [];
+    public ObservableCollection<PeriodReportDisplayRow> PeriodReportDisplayRows { get; } = [];
+    [ObservableProperty] private int periodReportItemCount;
+    [ObservableProperty] private decimal periodReportTotalOldAmount;
+    [ObservableProperty] private decimal periodReportTotalIncreaseAmount;
+    [ObservableProperty] private decimal periodReportTotalDecreaseAmount;
+    [ObservableProperty] private decimal periodReportTotalClosingAmount;
+
+    public bool IsReportMonthMode => SelectedPeriodReportMode == "Theo Tháng";
+    public bool IsReportQuarterMode => SelectedPeriodReportMode == "Theo Quý";
+    public bool IsReportYearMode => SelectedPeriodReportMode == "Theo Năm";
+    public bool IsReportCustomMode => SelectedPeriodReportMode == "Tùy chọn ngày";
+    public string ReportPeriodSummaryText
+    {
+        get
+        {
+            if (SelectedPeriodReportMode == "Theo Tháng")
+            {
+                return $"Tháng {ReportSelectedMonth:D2}/{ReportSelectedYear} ({ReportFromDate:dd/MM/yyyy} - {ReportToDate:dd/MM/yyyy})";
+            }
+            if (SelectedPeriodReportMode == "Theo Quý")
+            {
+                return $"{ReportSelectedQuarter}/{ReportSelectedYear} ({ReportFromDate:dd/MM/yyyy} - {ReportToDate:dd/MM/yyyy})";
+            }
+            if (SelectedPeriodReportMode == "Theo Năm")
+            {
+                return $"Cả năm {ReportSelectedYear} ({ReportFromDate:dd/MM/yyyy} - {ReportToDate:dd/MM/yyyy})";
+            }
+            return $"Khoảng ngày: {ReportFromDate:dd/MM/yyyy} - {ReportToDate:dd/MM/yyyy}";
+        }
+    }
+
+
+
     private CollectionViewSource? _dashboardViewSource;
     private string _dashboardSearchNormalized = string.Empty;
     private DispatcherTimer? _dashboardSearchDebounceTimer;
@@ -963,6 +1050,417 @@ public partial class MainViewModel(
             ShowError(ex);
         }
     }
+
+    private void SyncPillStates()
+    {
+        foreach (var p in ReportModePills)
+        {
+            p.IsSelected = (p.Key == SelectedPeriodReportMode);
+        }
+        foreach (var p in ReportMonthPills)
+        {
+            p.IsSelected = (p.Key == ReportSelectedMonth.ToString());
+        }
+        foreach (var p in ReportQuarterPills)
+        {
+            p.IsSelected = (p.Key == ReportSelectedQuarter);
+        }
+    }
+
+    partial void OnSelectedPeriodReportModeChanged(string value)
+    {
+        SyncPeriodReportDates();
+        SyncPillStates();
+        OnPropertyChanged(nameof(IsReportMonthMode));
+        OnPropertyChanged(nameof(IsReportQuarterMode));
+        OnPropertyChanged(nameof(IsReportYearMode));
+        OnPropertyChanged(nameof(IsReportCustomMode));
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    partial void OnReportSelectedYearChanged(int value)
+    {
+        SyncPeriodReportDates();
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    partial void OnReportSelectedMonthChanged(int value)
+    {
+        SyncPeriodReportDates();
+        SyncPillStates();
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    partial void OnReportSelectedQuarterChanged(string value)
+    {
+        SyncPeriodReportDates();
+        SyncPillStates();
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    partial void OnReportFromDateChanged(DateTime value)
+    {
+        UpdateReportDateHeaders();
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    partial void OnReportToDateChanged(DateTime value)
+    {
+        UpdateReportDateHeaders();
+        OnPropertyChanged(nameof(ReportPeriodSummaryText));
+    }
+
+    [RelayCommand]
+    private void SetPeriodReportMode(string mode)
+    {
+        SelectedPeriodReportMode = mode;
+    }
+
+    [RelayCommand]
+    private void SelectReportModePill(string mode)
+    {
+        SelectedPeriodReportMode = mode;
+    }
+
+    [RelayCommand]
+    private void PreviousReportYear()
+    {
+        ReportSelectedYear--;
+    }
+
+    [RelayCommand]
+    private void NextReportYear()
+    {
+        ReportSelectedYear++;
+    }
+
+    [RelayCommand]
+    private void SelectReportMonth(object? param)
+    {
+        if (param is int m)
+        {
+            ReportSelectedMonth = m;
+        }
+        else if (param is string s && int.TryParse(s, out var parsed))
+        {
+            ReportSelectedMonth = parsed;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectReportMonthPill(string monthStr)
+    {
+        if (int.TryParse(monthStr, out var m))
+        {
+            ReportSelectedMonth = m;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectReportQuarter(string quarter)
+    {
+        ReportSelectedQuarter = quarter;
+    }
+
+    [RelayCommand]
+    private void SelectReportQuarterPill(string quarter)
+    {
+        ReportSelectedQuarter = quarter;
+    }
+
+    [RelayCommand]
+    private void SetCustomRangeThisMonth()
+    {
+        var now = DateTime.Today;
+        ReportFromDate = new DateTime(now.Year, now.Month, 1);
+        ReportToDate = new DateTime(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month));
+    }
+
+    [RelayCommand]
+    private void SetCustomRangeThisQuarter()
+    {
+        var now = DateTime.Today;
+        var q = (now.Month - 1) / 3 + 1;
+        var startMonth = (q - 1) * 3 + 1;
+        var endMonth = startMonth + 2;
+        ReportFromDate = new DateTime(now.Year, startMonth, 1);
+        ReportToDate = new DateTime(now.Year, endMonth, DateTime.DaysInMonth(now.Year, endMonth));
+    }
+
+    [RelayCommand]
+    private void SetCustomRangeThisYear()
+    {
+        var now = DateTime.Today;
+        ReportFromDate = new DateTime(now.Year, 1, 1);
+        ReportToDate = new DateTime(now.Year, 12, 31);
+    }
+
+    private void SyncPeriodReportDates()
+    {
+        var year = ReportSelectedYear;
+        if (SelectedPeriodReportMode == "Theo Tháng")
+        {
+            var month = Math.Clamp(ReportSelectedMonth, 1, 12);
+            ReportFromDate = new DateTime(year, month, 1);
+            ReportToDate = new DateTime(year, month, DateTime.DaysInMonth(year, month));
+        }
+        else if (SelectedPeriodReportMode == "Theo Quý")
+        {
+            var q = ReportSelectedQuarter;
+            if (q == "Quý II")
+            {
+                ReportFromDate = new DateTime(year, 4, 1);
+                ReportToDate = new DateTime(year, 6, 30);
+            }
+            else if (q == "Quý III")
+            {
+                ReportFromDate = new DateTime(year, 7, 1);
+                ReportToDate = new DateTime(year, 9, 30);
+            }
+            else if (q == "Quý IV")
+            {
+                ReportFromDate = new DateTime(year, 10, 1);
+                ReportToDate = new DateTime(year, 12, 31);
+            }
+            else
+            {
+                ReportFromDate = new DateTime(year, 1, 1);
+                ReportToDate = new DateTime(year, 3, 31);
+            }
+        }
+        else if (SelectedPeriodReportMode == "Theo Năm")
+        {
+            ReportFromDate = new DateTime(year, 1, 1);
+            ReportToDate = new DateTime(year, 12, 31);
+        }
+        UpdateReportDateHeaders();
+    }
+
+    private void UpdateReportDateHeaders()
+    {
+        var old = ReportFromDate.AddDays(-1);
+        ReportOldStockHeader = $"Tồn cũ {old.Day}/{old.Month}/{old.Year}";
+        ReportClosingStockHeader = $"Tồn kho cuối kỳ {ReportToDate.Day}/{ReportToDate.Month}/{ReportToDate.Year}";
+    }
+
+    [RelayCommand]
+    private async Task LoadPeriodReportAsync()
+    {
+        try
+        {
+            if (ReportToDate.Date < ReportFromDate.Date)
+            {
+                throw new InvalidOperationException("Ngày kết thúc phải từ ngày bắt đầu trở đi.");
+            }
+
+            var filter = new PeriodStockReportFilter
+            {
+                Year = ReportSelectedYear > 0 ? ReportSelectedYear : ReportFromDate.Year,
+                FromDate = ReportFromDate,
+                ToDate = ReportToDate,
+                UsageType = (ReportSelectedUsageType == "Tất cả" || string.IsNullOrWhiteSpace(ReportSelectedUsageType)) ? null : ReportSelectedUsageType,
+                Category = (ReportSelectedCategory == "Tất cả" || string.IsNullOrWhiteSpace(ReportSelectedCategory)) ? null : ReportSelectedCategory,
+                OmitZeroStockAndMovement = ReportOmitZeroStock
+            };
+
+            List<PeriodStockReportRow> data = [];
+            await RunBusyAsync(
+                "Đang tính toán báo cáo số lượng và giá trị...",
+                async () =>
+                {
+                    data = await inventoryService.GetPeriodStockReportAsync(filter);
+                });
+
+            PeriodReportRows.Clear();
+            foreach (var r in data)
+            {
+                PeriodReportRows.Add(r);
+            }
+
+            RebuildPeriodReportDisplayRows(data);
+            StatusMessage = $"Đã tải báo cáo số lượng và giá trị: {data.Count} mặt hàng ({ReportFromDate:dd/MM/yyyy} - {ReportToDate:dd/MM/yyyy}).";
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex);
+        }
+    }
+
+    private void RebuildPeriodReportDisplayRows(IReadOnlyList<PeriodStockReportRow> data)
+    {
+        PeriodReportDisplayRows.Clear();
+
+        var romanNumerals = new[]
+        {
+            "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
+            "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX",
+            "XXI", "XXII", "XXIII", "XXIV", "XXV", "XXVI", "XXVII", "XXVIII", "XXIX", "XXX"
+        };
+
+        var orderList = CustomCategoryOrder.ToList();
+        var groups = data
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Category) ? "Khác" : r.Category.Trim())
+            .OrderBy(g =>
+            {
+                var idx = orderList.FindIndex(c => string.Equals(c, g.Key, StringComparison.OrdinalIgnoreCase));
+                return idx >= 0 ? idx : int.MaxValue;
+            })
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var romanIdx = 0;
+        var totalOldQty = 0m;
+        var totalOldAmt = 0m;
+        var totalIncQty = 0m;
+        var totalIncAmt = 0m;
+        var totalDecQty = 0m;
+        var totalDecAmt = 0m;
+        var totalCloseQty = 0m;
+        var totalCloseAmt = 0m;
+
+        foreach (var group in groups)
+        {
+            var roman = romanIdx < romanNumerals.Length ? romanNumerals[romanIdx] : (romanIdx + 1).ToString();
+            romanIdx++;
+
+            // Dòng nhóm danh mục (I. THUỐC...)
+            PeriodReportDisplayRows.Add(new PeriodReportDisplayRow
+            {
+                IsCategoryHeader = true,
+                Stt = $"{roman}.",
+                CategoryOrName = group.Key.ToUpper()
+            });
+
+            var itemIdx = 1;
+            foreach (var item in group.OrderBy(x => x.ItemName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ItemCode))
+            {
+                PeriodReportDisplayRows.Add(new PeriodReportDisplayRow
+                {
+                    IsCategoryHeader = false,
+                    Stt = (itemIdx++).ToString(),
+                    CategoryOrName = item.ItemName,
+                    Unit = item.Unit,
+                    UnitPriceText = item.UnitPrice > 0 ? item.UnitPrice.ToString("N0") : "0",
+                    OpeningQuantityText = item.OpeningQuantity != 0 ? item.OpeningQuantity.ToString("N0") : "0",
+                    OpeningAmountText = item.OpeningAmount != 0 ? item.OpeningAmount.ToString("N0") : "0",
+                    IncreaseQuantityText = item.IncreaseQuantity != 0 ? item.IncreaseQuantity.ToString("N0") : "",
+                    IncreaseAmountText = item.IncreaseAmount != 0 ? item.IncreaseAmount.ToString("N0") : "",
+                    DecreaseQuantityText = item.DecreaseQuantity != 0 ? item.DecreaseQuantity.ToString("N0") : "",
+                    DecreaseAmountText = item.DecreaseAmount != 0 ? item.DecreaseAmount.ToString("N0") : "",
+                    ClosingQuantityText = item.ClosingQuantity != 0 ? item.ClosingQuantity.ToString("N0") : "0",
+                    ClosingWeightQuantityText = string.Empty, // Cột 12 để trống theo yêu cầu 3
+                    ClosingAmountText = item.ClosingAmount != 0 ? item.ClosingAmount.ToString("N0") : "0"
+                });
+
+                totalOldQty += item.OpeningQuantity;
+                totalOldAmt += item.OpeningAmount;
+                totalIncQty += item.IncreaseQuantity;
+                totalIncAmt += item.IncreaseAmount;
+                totalDecQty += item.DecreaseQuantity;
+                totalDecAmt += item.DecreaseAmount;
+                totalCloseQty += item.ClosingQuantity;
+                totalCloseAmt += item.ClosingAmount;
+            }
+            // Không thêm dòng cộng nhóm danh mục theo yêu cầu 4
+        }
+
+        // Dòng TỔNG CỘNG chung ở cuối
+        PeriodReportDisplayRows.Add(new PeriodReportDisplayRow
+        {
+            IsTotalRow = true,
+            Stt = string.Empty,
+            CategoryOrName = "TỔNG CỘNG",
+            Unit = string.Empty,
+            UnitPriceText = string.Empty,
+            OpeningQuantityText = totalOldQty.ToString("N0"),
+            OpeningAmountText = totalOldAmt.ToString("N0"),
+            IncreaseQuantityText = totalIncQty.ToString("N0"),
+            IncreaseAmountText = totalIncAmt.ToString("N0"),
+            DecreaseQuantityText = totalDecQty.ToString("N0"),
+            DecreaseAmountText = totalDecAmt.ToString("N0"),
+            ClosingQuantityText = totalCloseQty.ToString("N0"),
+            ClosingWeightQuantityText = string.Empty,
+            ClosingAmountText = totalCloseAmt.ToString("N0")
+        });
+
+        PeriodReportItemCount = data.Count;
+        PeriodReportTotalOldAmount = totalOldAmt;
+        PeriodReportTotalIncreaseAmount = totalIncAmt;
+        PeriodReportTotalDecreaseAmount = totalDecAmt;
+        PeriodReportTotalClosingAmount = totalCloseAmt;
+    }
+
+    [RelayCommand]
+    private void OpenCategoryOrderDialog()
+    {
+        try
+        {
+            var allCategories = Items
+                .Select(x => x.Category)
+                .Concat(PeriodReportRows.Select(x => x.Category))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var dialog = new Views.CategoryOrderWindow(CustomCategoryOrder, allCategories)
+            {
+                Owner = Application.Current?.MainWindow
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                CustomCategoryOrder = dialog.OrderedCategories.ToList();
+                UiPreferenceService.SaveReportCategoryOrder(CustomCategoryOrder);
+                StatusMessage = "Đã cập nhật thứ tự các nhóm danh mục.";
+
+                if (PeriodReportRows.Count > 0)
+                {
+                    RebuildPeriodReportDisplayRows(PeriodReportRows.ToList());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExportPeriodReportExcelAsync()
+    {
+        try
+        {
+            if (PeriodReportRows.Count == 0)
+            {
+                await LoadPeriodReportAsync();
+                if (PeriodReportRows.Count == 0)
+                {
+                    StatusMessage = "Không có dữ liệu mặt hàng nào để xuất báo cáo.";
+                    return;
+                }
+            }
+
+            var fileName = $"BaoCaoNXT_{ReportFromDate:yyyyMMdd}_{ReportToDate:yyyyMMdd}.xlsx";
+            var output = SaveExcelFile(fileName);
+            if (output is null)
+            {
+                return;
+            }
+
+            var rowsList = PeriodReportRows.ToList();
+            await RunBusyAsync(
+                "Đang xuất file Excel báo cáo...",
+                () => _periodReportExcelExportService.Export(output, rowsList, ReportFromDate, ReportToDate, CustomCategoryOrder));
+
+            StatusMessage = $"Đã xuất Excel báo cáo số lượng và giá trị: {output}";
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex);
+        }
+    }
+
 
     [RelayCommand]
     private async Task BackupDatabaseAsync()
@@ -2785,6 +3283,9 @@ public partial class MainViewModel(
     {
         DashboardCategoryOptions.Clear();
         DashboardCategoryOptions.Add(new CategoryOption(DashboardFilterEmptyLabel, string.Empty));
+        ReportCategoryOptions.Clear();
+        ReportCategoryOptions.Add("Tất cả");
+
         foreach (var c in Items
                      .Select(x => x.Category)
                      .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -2793,8 +3294,10 @@ public partial class MainViewModel(
                      .OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
             DashboardCategoryOptions.Add(new CategoryOption(c, c));
+            ReportCategoryOptions.Add(c);
         }
     }
+
 
     public async Task CommitDashboardRowEditAsync(DashboardRowViewModel row)
     {
@@ -3412,3 +3915,17 @@ public sealed partial class OpeningBalanceInputViewModel : ObservableObject
         Note = source.Note;
     }
 }
+
+public sealed class PeriodReportSelectionPill : ObservableObject
+{
+    public string Key { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public string SubLabel { get; init; } = string.Empty;
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+}
+

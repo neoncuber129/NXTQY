@@ -331,3 +331,69 @@ public sealed class ImportResult<T>
     public List<ImportError> Errors { get; } = [];
     public bool IsValid => Errors.Count == 0;
 }
+
+public sealed class PeriodStockReportRow
+{
+    public int ItemId { get; set; }
+    public string ItemCode { get; set; } = string.Empty;
+    public string ItemName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+    public string UsageType { get; set; } = string.Empty;
+
+    // Tồn cũ (Đầu kỳ)
+    public decimal OpeningQuantity { get; set; }
+    public decimal OpeningAmount { get; set; }
+
+    // Tăng trong kỳ (Nhập)
+    public decimal IncreaseQuantity { get; set; }
+    public decimal IncreaseAmount { get; set; }
+
+    // Giảm trong kỳ (Xuất)
+    public decimal DecreaseQuantity { get; set; }
+    public decimal DecreaseAmount { get; set; }
+
+    // Tồn cuối kỳ
+    public decimal ClosingQuantity { get; set; }
+    public decimal ClosingWeightQuantity { get; set; } // Quy trọng lượng
+    public decimal ClosingAmount { get; set; }
+
+    public string? Note { get; set; }
+}
+
+public sealed class PeriodStockReportFilter
+{
+    public int Year { get; set; }
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate { get; set; }
+    public string? UsageType { get; set; }
+    public string? Category { get; set; }
+    public bool OmitZeroStockAndMovement { get; set; } = false;
+}
+
+public sealed class PeriodReportDisplayRow
+{
+    public bool IsCategoryHeader { get; set; }
+    public bool IsTotalRow { get; set; }
+
+    public string Stt { get; set; } = string.Empty;
+    public string CategoryOrName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public string UnitPriceText { get; set; } = string.Empty;
+
+    public string OpeningQuantityText { get; set; } = string.Empty;
+    public string OpeningAmountText { get; set; } = string.Empty;
+
+    public string IncreaseQuantityText { get; set; } = string.Empty;
+    public string IncreaseAmountText { get; set; } = string.Empty;
+
+    public string DecreaseQuantityText { get; set; } = string.Empty;
+    public string DecreaseAmountText { get; set; } = string.Empty;
+
+    public string ClosingQuantityText { get; set; } = string.Empty;
+    public string ClosingWeightQuantityText { get; set; } = string.Empty;
+    public string ClosingAmountText { get; set; } = string.Empty;
+}
+
+

@@ -64,6 +64,25 @@ public class SchemaSelfHealTests
         }
     }
 
+    [Fact]
+    public async Task Initialize_Recreates_Missing_StockPeriod_IsHiddenInDashboard()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+
+        await using (var db = database.CreateContext())
+        {
+            await db.Database.ExecuteSqlRawAsync("""ALTER TABLE "StockPeriods" DROP COLUMN "IsHiddenInDashboard";""");
+        }
+
+        await database.Service.InitializeAsync();
+
+        await using (var db = database.CreateContext())
+        {
+            var columns = await ReadColumnNamesAsync(db, "StockPeriods");
+            Assert.Contains("IsHiddenInDashboard", columns, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     private static async Task<List<string>> ReadColumnNamesAsync(Inventory.Data.InventoryDbContext db, string table)
     {
         var connection = db.Database.GetDbConnection();

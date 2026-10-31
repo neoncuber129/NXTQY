@@ -986,7 +986,545 @@
                 </DockPanel>
             </TabItem>
 
+            <TabItem Header="Báo cáo NXT (SL &amp; Giá trị)">
+                <DockPanel Margin="0,8,0,0">
+                    <!-- Thanh bộ chọn kỳ trực quan và bộ lọc -->
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,8" Padding="12,10"
+                            BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Background="#F8FAFC">
+                        <StackPanel>
+                            <!-- Hàng 1: Chuyển chế độ (Pill buttons: Tháng, Quý, Năm, Tùy chọn) + Huy hiệu kỳ đã chọn -->
+                            <DockPanel LastChildFill="True" Margin="0,0,0,10">
+                                <!-- Huy hiệu thông tin kỳ hiển thị nổi bật ở bên phải -->
+                                <Border DockPanel.Dock="Right" Background="#EFF6FF" BorderBrush="#93C5FD" BorderThickness="1"
+                                        CornerRadius="6" Padding="12,5" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="📌 Kỳ báo cáo: " Foreground="#1E40AF" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ReportPeriodSummaryText}" Foreground="#1D4ED8" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Bộ nút chuyển chế độ trực quan (Tháng / Quý / Năm / Tùy chọn) -->
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Chế độ xem:" FontWeight="Bold" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <ItemsControl ItemsSource="{Binding ReportModePills}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding Label}"
+                                                        Command="{Binding DataContext.SelectReportModePillCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding Key}"
+                                                        Margin="0,0,6,0" Padding="12,5"
+                                                        Cursor="Hand">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="#FFFFFF"/>
+                                                            <Setter Property="Foreground" Value="#334155"/>
+                                                            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                                                            <Setter Property="BorderThickness" Value="1"/>
+                                                            <Setter Property="FontWeight" Value="Normal"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                CornerRadius="16"
+                                                                                Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Background" Value="#2563EB"/>
+                                                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                                    <Setter Property="BorderBrush" Value="#1D4ED8"/>
+                                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Hàng 2: Bộ chọn chi tiết tương ứng với chế độ được kích hoạt -->
+                            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,8">
+                                <Grid>
+                                    <!-- CHẾ ĐỘ 1: THEO THÁNG -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding IsReportMonthMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Năm:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <Button Content="◀" Command="{Binding PreviousReportYearCommand}" Width="28" Height="28" Margin="0,0,4,0"
+                                                ToolTip="Năm trước" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+                                        <TextBox Text="{Binding ReportSelectedYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="55" Height="28" FontWeight="Bold" FontSize="13" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                        <Button Content="▶" Command="{Binding NextReportYearCommand}" Width="28" Height="28" Margin="0,0,16,0"
+                                                ToolTip="Năm sau" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+
+                                        <TextBlock Text="Chọn tháng:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <!-- 12 nút tháng -->
+                                        <ItemsControl ItemsSource="{Binding ReportMonthPills}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding Label}"
+                                                            Command="{Binding DataContext.SelectReportMonthPillCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Key}"
+                                                            Margin="0,0,4,0" Padding="8,4" MinWidth="48"
+                                                            Cursor="Hand">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Background" Value="#F1F5F9"/>
+                                                                <Setter Property="Foreground" Value="#334155"/>
+                                                                <Setter Property="BorderBrush" Value="#E2E8F0"/>
+                                                                <Setter Property="BorderThickness" Value="1"/>
+                                                                <Setter Property="FontWeight" Value="Normal"/>
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border Background="{TemplateBinding Background}"
+                                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                    CornerRadius="4"
+                                                                                    Padding="{TemplateBinding Padding}">
+                                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                            </Border>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Background" Value="#0284C7"/>
+                                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                                        <Setter Property="BorderBrush" Value="#0369A1"/>
+                                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- CHẾ ĐỘ 2: THEO QUÝ -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding IsReportQuarterMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Năm:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <Button Content="◀" Command="{Binding PreviousReportYearCommand}" Width="28" Height="28" Margin="0,0,4,0"
+                                                ToolTip="Năm trước" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+                                        <TextBox Text="{Binding ReportSelectedYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="55" Height="28" FontWeight="Bold" FontSize="13" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                        <Button Content="▶" Command="{Binding NextReportYearCommand}" Width="28" Height="28" Margin="0,0,16,0"
+                                                ToolTip="Năm sau" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+
+                                        <TextBlock Text="Chọn quý:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <!-- 4 nút quý -->
+                                        <ItemsControl ItemsSource="{Binding ReportQuarterPills}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Command="{Binding DataContext.SelectReportQuarterPillCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Key}"
+                                                            Margin="0,0,8,0" Padding="12,4" MinWidth="110"
+                                                            Cursor="Hand">
+                                                        <Button.Content>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Label}" FontWeight="Bold"/>
+                                                                <TextBlock Text=" (" Foreground="#94A3B8" Margin="3,0,0,0"/>
+                                                                <TextBlock Text="{Binding SubLabel}" FontSize="11"/>
+                                                                <TextBlock Text=")" Foreground="#94A3B8"/>
+                                                            </StackPanel>
+                                                        </Button.Content>
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Background" Value="#F1F5F9"/>
+                                                                <Setter Property="Foreground" Value="#334155"/>
+                                                                <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                                                                <Setter Property="BorderThickness" Value="1"/>
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border Background="{TemplateBinding Background}"
+                                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                    CornerRadius="4"
+                                                                                    Padding="{TemplateBinding Padding}">
+                                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                            </Border>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Background" Value="#0D9488"/>
+                                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                                        <Setter Property="BorderBrush" Value="#0F766E"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- CHẾ ĐỘ 3: THEO NĂM -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding IsReportYearMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Năm báo cáo:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <Button Content="◀" Command="{Binding PreviousReportYearCommand}" Width="28" Height="28" Margin="0,0,4,0"
+                                                ToolTip="Năm trước" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+                                        <TextBox Text="{Binding ReportSelectedYear, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="65" Height="28" FontWeight="Bold" FontSize="14" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" Margin="0,0,4,0"/>
+                                        <Button Content="▶" Command="{Binding NextReportYearCommand}" Width="28" Height="28" Margin="0,0,16,0"
+                                                ToolTip="Năm sau" Style="{StaticResource SecondaryButtonStyle}" Padding="0"/>
+
+                                        <Border Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="4" Padding="10,4">
+                                            <TextBlock Foreground="#166534">
+                                                <Run Text="✓ Toàn bộ phát sinh cả năm: " FontWeight="SemiBold"/>
+                                                <Run Text="01/01/"/><Run Text="{Binding ReportSelectedYear}"/><Run Text=" đến 31/12/"/><Run Text="{Binding ReportSelectedYear}"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- CHẾ ĐỘ 4: TÙY CHỌN NGÀY -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding IsReportCustomMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Từ ngày:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                                        <DatePicker SelectedDate="{Binding ReportFromDate, Mode=TwoWay}" Width="120" Height="28"/>
+                                        <TextBlock Text="Đến ngày:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="12,0,6,0"/>
+                                        <DatePicker SelectedDate="{Binding ReportToDate, Mode=TwoWay}" Width="120" Height="28" Margin="0,0,16,0"/>
+
+                                        <TextBlock Text="Chọn nhanh:" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <Button Content="Tháng này" Command="{Binding SetCustomRangeThisMonthCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,4" Margin="0,0,4,0"/>
+                                        <Button Content="Quý này" Command="{Binding SetCustomRangeThisQuarterCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,4" Margin="0,0,4,0"/>
+                                        <Button Content="Năm nay" Command="{Binding SetCustomRangeThisYearCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Padding="8,4"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Hàng 3: Bộ lọc phụ (Nguồn, Danh mục, Ẩn số 0) + Nút thao tác -->
+                            <WrapPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4" VerticalAlignment="Center">
+                                    <TextBlock Text="Nguồn:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox ItemsSource="{Binding ReportUsageTypeOptions}"
+                                              SelectedItem="{Binding ReportSelectedUsageType, Mode=TwoWay}"
+                                              Width="120" MinHeight="26" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4" VerticalAlignment="Center">
+                                    <TextBlock Text="Danh mục:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox ItemsSource="{Binding ReportCategoryOptions}"
+                                              SelectedItem="{Binding ReportSelectedCategory, Mode=TwoWay}"
+                                              Width="160" MinHeight="26" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+
+                                <Button Content="↕ Sắp xếp nhóm"
+                                        Command="{Binding OpenCategoryOrderDialogCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Height="28" Padding="10,2" Margin="0,0,16,4"
+                                        ToolTip="Tùy chỉnh thứ tự hiển thị các nhóm danh mục"/>
+
+                                <CheckBox Content="Ẩn tồn và phát sinh = 0"
+                                          IsChecked="{Binding ReportOmitZeroStock, Mode=TwoWay}"
+                                          VerticalAlignment="Center" Margin="0,0,24,4"/>
+
+                                <Button Content="🔎 Xem báo cáo"
+                                        Command="{Binding LoadPeriodReportCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Height="30" Padding="16,4" Margin="0,0,10,4"
+                                        FontWeight="Bold"/>
+
+                                <Button Content="📥 Xuất Excel"
+                                        Command="{Binding ExportPeriodReportExcelCommand}"
+                                        Style="{StaticResource ExportButtonStyle}"
+                                        Height="30" Padding="16,4" Margin="0,0,0,4"
+                                        FontWeight="Bold"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Thanh thống kê tổng hợp ở chân bảng -->
+                    <Border DockPanel.Dock="Bottom" Padding="10,8" Margin="0,8,0,0"
+                            BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Background="#F8FAFC">
+                        <WrapPanel VerticalAlignment="Center">
+                            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0">
+                                <Run Text="Số mặt hàng: " Foreground="#475569"/>
+                                <Run Text="{Binding PeriodReportItemCount, Mode=OneWay}" Foreground="#1E40AF"/>
+                            </TextBlock>
+                            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0">
+                                <Run Text="Tổng tiền tồn cũ: " Foreground="#475569"/>
+                                <Run Text="{Binding PeriodReportTotalOldAmount, StringFormat={}{0:N0} đ, Mode=OneWay}" Foreground="#047857"/>
+                            </TextBlock>
+                            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0">
+                                <Run Text="Tổng tiền tăng: " Foreground="#475569"/>
+                                <Run Text="{Binding PeriodReportTotalIncreaseAmount, StringFormat={}{0:N0} đ, Mode=OneWay}" Foreground="#2563EB"/>
+                            </TextBlock>
+                            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,20,0">
+                                <Run Text="Tổng tiền giảm: " Foreground="#475569"/>
+                                <Run Text="{Binding PeriodReportTotalDecreaseAmount, StringFormat={}{0:N0} đ, Mode=OneWay}" Foreground="#DC2626"/>
+                            </TextBlock>
+                            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,0,0">
+                                <Run Text="Tổng tiền tồn cuối: " Foreground="#475569"/>
+                                <Run Text="{Binding PeriodReportTotalClosingAmount, StringFormat={}{0:N0} đ, Mode=OneWay}" Foreground="#7C3AED"/>
+                            </TextBlock>
+                        </WrapPanel>
+                    </Border>
+
+                    <!-- BẢNG DỮ LIỆU CHUẨN WPF: 13 CỘT ĐỒNG NHẤT 100% TIÊU ĐỀ VÀ DỮ LIỆU -->
+                    <DataGrid ItemsSource="{Binding PeriodReportDisplayRows}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              GridLinesVisibility="All"
+                              HorizontalGridLinesBrush="#E2E8F0"
+                              VerticalGridLinesBrush="#E2E8F0"
+                              RowHeight="26"
+                              HeadersVisibility="Column"
+                              RowHeaderWidth="0"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#F1F5F9"/>
+                                <Setter Property="Foreground" Value="#1E293B"/>
+                                <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                <Setter Property="Padding" Value="4,4"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <!-- Dòng phân loại nhóm lớn (I. THUỐC...) -->
+                                    <DataTrigger Binding="{Binding IsCategoryHeader}" Value="True">
+                                        <Setter Property="Background" Value="#F1F5F9"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Foreground" Value="#0F172A"/>
+                                    </DataTrigger>
+                                    <!-- Dòng TỔNG CỘNG chung ở cuối -->
+                                    <DataTrigger Binding="{Binding IsTotalRow}" Value="True">
+                                        <Setter Property="Background" Value="#FEF3C7"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Foreground" Value="#92400E"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <!-- 1. STT -->
+                            <DataGridTextColumn Binding="{Binding Stt}" Width="50">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="STT" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="(1)" FontStyle="Italic" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 2. DANH MỤC / TÊN MẶT HÀNG -->
+                            <DataGridTextColumn Binding="{Binding CategoryOrName}" Width="*" MinWidth="260">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="TÊN HÀNG HÓA, QUY CÁCH (DANH MỤC)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="(2)" FontStyle="Italic" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Padding" Value="6,0,4,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 3. ĐVT -->
+                            <DataGridTextColumn Binding="{Binding Unit}" Width="65">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="ĐVT" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="(3)" FontStyle="Italic" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CenterAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 4. Đơn giá (1000đ) -->
+                            <DataGridTextColumn Binding="{Binding UnitPriceText}" Width="100">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="Đơn giá (1000đ)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="(4)" FontStyle="Italic" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 5. Tồn cũ - Số lượng -->
+                            <DataGridTextColumn Binding="{Binding OpeningQuantityText}" Width="95">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding DataContext.ReportOldStockHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Số lượng (5)" FontWeight="SemiBold" FontSize="11" Foreground="#047857" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 6. Tồn cũ - Giá trị -->
+                            <DataGridTextColumn Binding="{Binding OpeningAmountText}" Width="115">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding DataContext.ReportOldStockHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Thành tiền (6)" FontWeight="SemiBold" FontSize="11" Foreground="#047857" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 7. Tăng - Số lượng -->
+                            <DataGridTextColumn Binding="{Binding IncreaseQuantityText}" Width="95">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="TĂNG (NHẬP KỲ)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Số lượng (7)" FontWeight="SemiBold" FontSize="11" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 8. Tăng - Giá trị -->
+                            <DataGridTextColumn Binding="{Binding IncreaseAmountText}" Width="115">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="TĂNG (NHẬP KỲ)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Thành tiền (8)" FontWeight="SemiBold" FontSize="11" Foreground="#2563EB" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 9. Giảm - Số lượng -->
+                            <DataGridTextColumn Binding="{Binding DecreaseQuantityText}" Width="95">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="GIẢM (XUẤT KỲ)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Số lượng (9)" FontWeight="SemiBold" FontSize="11" Foreground="#DC2626" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 10. Giảm - Giá trị -->
+                            <DataGridTextColumn Binding="{Binding DecreaseAmountText}" Width="115">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="GIẢM (XUẤT KỲ)" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Thành tiền (10)" FontWeight="SemiBold" FontSize="11" Foreground="#DC2626" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 11. Tồn kho cuối kỳ - Số lượng -->
+                            <DataGridTextColumn Binding="{Binding ClosingQuantityText}" Width="95">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding DataContext.ReportClosingStockHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Số lượng (11)" FontWeight="SemiBold" FontSize="11" Foreground="#7C3AED" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 12. Tồn kho cuối kỳ - Quy trọng lượng (ĐỂ TRỐNG THEO YÊU CẦU 3) -->
+                            <DataGridTextColumn Binding="{Binding ClosingWeightQuantityText}" Width="95">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="Quy trọng lượng" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="(12)" FontStyle="Italic" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- 13. Tồn kho cuối kỳ - Giá trị -->
+                            <DataGridTextColumn Binding="{Binding ClosingAmountText}" Width="125">
+                                <DataGridTextColumn.Header>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding DataContext.ReportClosingStockHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   FontWeight="Bold" HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Thành tiền (13)" FontWeight="SemiBold" FontSize="11" Foreground="#7C3AED" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataGridTextColumn.Header>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource RightAlignedCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
         </TabControl>
+
     </DockPanel>
     <views:BusyOverlay Panel.ZIndex="10"
                        Message="{Binding BusyMessage}"

@@ -1105,6 +1105,159 @@ public sealed class InventoryService(IDbContextFactory<InventoryDbContext> dbCon
         return rows;
     }
 
+    public async Task<List<PeriodStockReportRow>> GetPeriodStockReportAsync(PeriodStockReportFilter filter)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+
+        var year = filter.Year > 0 ? filter.Year : filter.FromDate.Year;
+        var fromDate = filter.FromDate.Date;
+        var toDate = filter.ToDate.Date;
+        var yearStart = new DateTime(year, 1, 1);
+
+        var itemsQuery = db.Items.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(filter.UsageType))
+        {
+            var normUsage = ItemVariantKey.NormalizeUsageType(filter.UsageType);
+            itemsQuery = itemsQuery.Where(x => x.UsageType == normUsage);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Category))
+        {
+            var cat = filter.Category.Trim();
+            itemsQuery = itemsQuery.Where(x => x.Category == cat);
+        }
+
+        var items = await itemsQuery
+            .OrderBy(x => x.Category)
+            .ThenBy(x => x.ItemName)
+            .ThenBy(x => x.ItemCode)
+            .ToListAsync();
+
+        if (items.Count == 0)
+        {
+            return [];
+        }
+
+        var itemIds = items.Select(x => x.Id).ToList();
+
+        var periods = await db.StockPeriods.AsNoTracking()
+            .Where(x => x.Year == year && itemIds.Contains(x.ItemId))
+            .ToDictionaryAsync(x => x.ItemId);
+
+        // Nhập phát sinh trước FromDate (trong cùng năm)
+        var preReceiptsQuery =
+            from line in db.ReceiptLines.AsNoTracking()
+            join receipt in db.Receipts.AsNoTracking() on line.ReceiptId equals receipt.Id
+            where itemIds.Contains(line.ItemId)
+                  && receipt.ReceiptDate >= yearStart
+                  && receipt.ReceiptDate < fromDate
+            select new { line.ItemId, line.Quantity };
+
+        var preReceipts = await preReceiptsQuery.ToListAsync();
+        var preReceiptQtyByItem = preReceipts
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        // Xuất phát sinh trước FromDate (trong cùng năm, chỉ tính phiếu gốc ParentIssueId == null)
+        var preIssuesQuery =
+            from line in db.IssueLines.AsNoTracking()
+            join issue in db.Issues.AsNoTracking() on line.IssueId equals issue.Id
+            where itemIds.Contains(line.ItemId)
+                  && issue.ParentIssueId == null
+                  && issue.IssueDate >= yearStart
+                  && issue.IssueDate < fromDate
+            select new { line.ItemId, line.Quantity };
+
+        var preIssues = await preIssuesQuery.ToListAsync();
+        var preIssueQtyByItem = preIssues
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        // Nhập phát sinh trong kỳ [fromDate, toDate]
+        var inPeriodReceiptsQuery =
+            from line in db.ReceiptLines.AsNoTracking()
+            join receipt in db.Receipts.AsNoTracking() on line.ReceiptId equals receipt.Id
+            where itemIds.Contains(line.ItemId)
+                  && receipt.ReceiptDate >= fromDate
+                  && receipt.ReceiptDate <= toDate
+            select new { line.ItemId, line.Quantity, line.Amount };
+
+        var inPeriodReceipts = await inPeriodReceiptsQuery.ToListAsync();
+        var inPeriodReceiptQtyByItem = inPeriodReceipts
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        // Xuất phát sinh trong kỳ [fromDate, toDate] (chỉ tính phiếu gốc ParentIssueId == null)
+        var inPeriodIssuesQuery =
+            from line in db.IssueLines.AsNoTracking()
+            join issue in db.Issues.AsNoTracking() on line.IssueId equals issue.Id
+            where itemIds.Contains(line.ItemId)
+                  && issue.ParentIssueId == null
+                  && issue.IssueDate >= fromDate
+                  && issue.IssueDate <= toDate
+            select new { line.ItemId, line.Quantity, line.Amount };
+
+        var inPeriodIssues = await inPeriodIssuesQuery.ToListAsync();
+        var inPeriodIssueQtyByItem = inPeriodIssues
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+
+        var rows = new List<PeriodStockReportRow>(items.Count);
+
+        foreach (var item in items)
+        {
+            periods.TryGetValue(item.Id, out var period);
+            var yearOpeningQty = period?.OpeningQuantity ?? 0m;
+            var unitPrice = (period is not null && period.UnitPrice > 0) ? period.UnitPrice : item.UnitPrice;
+
+            var preInQty = preReceiptQtyByItem.GetValueOrDefault(item.Id, 0m);
+            var preOutQty = preIssueQtyByItem.GetValueOrDefault(item.Id, 0m);
+
+            // Tồn cũ tại đầu kỳ FromDate
+            var openingQty = yearOpeningQty + preInQty - preOutQty;
+            var openingAmt = openingQty * unitPrice;
+
+            // Phát sinh trong kỳ
+            var incQty = inPeriodReceiptQtyByItem.GetValueOrDefault(item.Id, 0m);
+            var incAmt = incQty * unitPrice;
+
+            var decQty = inPeriodIssueQtyByItem.GetValueOrDefault(item.Id, 0m);
+            var decAmt = decQty * unitPrice;
+
+            // Tồn cuối kỳ
+            var closingQty = openingQty + incQty - decQty;
+            var closingAmt = closingQty * unitPrice;
+
+            if (filter.OmitZeroStockAndMovement && openingQty == 0 && incQty == 0 && decQty == 0 && closingQty == 0)
+            {
+                continue;
+            }
+
+            rows.Add(new PeriodStockReportRow
+            {
+                ItemId = item.Id,
+                ItemCode = item.ItemCode,
+                ItemName = item.ItemName,
+                Category = item.Category,
+                Unit = item.Unit,
+                UnitPrice = unitPrice,
+                UsageType = item.UsageType,
+                OpeningQuantity = openingQty,
+                OpeningAmount = openingAmt,
+                IncreaseQuantity = incQty,
+                IncreaseAmount = incAmt,
+                DecreaseQuantity = decQty,
+                DecreaseAmount = decAmt,
+                ClosingQuantity = closingQty,
+                ClosingWeightQuantity = closingQty,
+                ClosingAmount = closingAmt,
+                Note = item.Note
+            });
+        }
+
+        return rows;
+    }
+
+
     public async Task UpdateItemsMetadataAsync(IReadOnlyList<ItemMetadataPatch> patches)
     {
         if (patches.Count == 0)

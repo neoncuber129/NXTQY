@@ -1,0 +1,185 @@
+<Window x:Class="Inventory.App.Views.CategoryOrderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Language="vi-VN"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Title="Sắp xếp thứ tự nhóm danh mục"
+        Height="540"
+        Width="580"
+        MinWidth="480"
+        MinHeight="400"
+        ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tiêu đề & Hướng dẫn -->
+        <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,10" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <StackPanel>
+                <TextBlock Text="↕ SẮP XẾP THỨ TỰ NHÓM DANH MỤC" FontWeight="Bold" FontSize="14" Foreground="#1E293B"/>
+                <TextBlock Text="Thứ tự bên dưới sẽ quy định thứ tự các khối nhóm (I, II, III...) trên bảng hiển thị Báo cáo NXT và file Excel xuất ra."
+                           Foreground="#64748B" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Thân: Danh sách bên trái + Các nút điều khiển bên phải -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="150"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Khung danh sách nhóm danh mục -->
+            <Border Grid.Column="0" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Background="#FFFFFF">
+                <ListBox x:Name="CategoryListBox"
+                         Margin="4"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         SelectionMode="Single"
+                         SelectionChanged="CategoryListBox_SelectionChanged">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="4"/>
+                            <Setter Property="Margin" Value="0,1"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="ItemBorder"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9"/>
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#CBD5E1"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF"/>
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3B82F6"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="4,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="42"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Huy hiệu số La Mã -->
+                                <Border Grid.Column="0"
+                                        Background="#E2E8F0"
+                                        CornerRadius="4"
+                                        Padding="4,2"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        MinWidth="34">
+                                    <TextBlock Text="{Binding OrderBadge}"
+                                               FontWeight="Bold"
+                                               FontSize="12"
+                                               Foreground="#334155"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- Tên nhóm danh mục -->
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding Name}"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="#0F172A"
+                                           VerticalAlignment="Center"
+                                           Margin="10,0,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <!-- Cột nút điều hướng di chuyển -->
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top">
+                <Button x:Name="MoveUpButton"
+                        Content="▲ Di chuyển lên"
+                        Click="MoveUpButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Margin="0,0,0,6" Height="30"
+                        ToolTip="Di chuyển nhóm danh mục lên trên 1 bậc (Phím tắt: Alt+Up)"/>
+
+                <Button x:Name="MoveDownButton"
+                        Content="▼ Di chuyển xuống"
+                        Click="MoveDownButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Margin="0,0,0,12" Height="30"
+                        ToolTip="Di chuyển nhóm danh mục xuống dưới 1 bậc (Phím tắt: Alt+Down)"/>
+
+                <Button x:Name="MoveTopButton"
+                        Content="⏫ Lên đầu tiên"
+                        Click="MoveTopButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Margin="0,0,0,6" Height="28"
+                        ToolTip="Đưa nhóm danh mục lên vị trí đầu tiên"/>
+
+                <Button x:Name="MoveBottomButton"
+                        Content="⏬ Xuống cuối cùng"
+                        Click="MoveBottomButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Margin="0,0,0,16" Height="28"
+                        ToolTip="Đưa nhóm danh mục xuống vị trí cuối cùng"/>
+
+                <Separator Margin="0,0,0,16" Background="#E2E8F0"/>
+
+                <Button Content="🔤 Sắp xếp A → Z"
+                        Click="SortAlphabeticalButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Margin="0,0,0,6" Height="28"
+                        ToolTip="Sắp xếp toàn bộ nhóm theo bảng chữ cái A → Z"/>
+
+                <Button Content="↺ Mặc định ban đầu"
+                        Click="ResetDefaultButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Height="28"
+                        ToolTip="Khôi phục lại thứ tự mặc định"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Thanh điều khiển chân trang -->
+        <DockPanel Grid.Row="2" Margin="0,14,0,0" LastChildFill="False">
+            <TextBlock Text="💡 Mẹo: Chọn nhóm và dùng các nút Lên/Xuống để sắp xếp thứ tự ưu tiên."
+                       Foreground="#64748B" FontSize="11"
+                       VerticalAlignment="Center"
+                       DockPanel.Dock="Left"/>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="💾 Áp dụng &amp; Lưu"
+                        IsDefault="True"
+                        Click="ApplyButton_Click"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Height="32" Padding="16,4" Margin="0,0,8,0"
+                        FontWeight="Bold"/>
+
+                <Button Content="Hủy"
+                        IsCancel="True"
+                        Click="CancelButton_Click"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Height="32" Padding="14,4"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>
